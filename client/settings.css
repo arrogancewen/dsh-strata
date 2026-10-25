@@ -1,0 +1,377 @@
+.strata-settings-host { container-name: strata; container-type: inline-size; width: 100%; min-width: 0; }
+
+.strata-app {
+  --st-bg: var(--dsw-alias-bg-base, #ffffff);
+  --st-surface: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1, #ffffff));
+  --st-sidebar: var(--dsw-specific-sidebar-fill, #f9fafb);
+  --st-subtle: var(--dsw-alias-bg-layer-2, #f4f4f5);
+  --st-text: var(--dsw-alias-label-primary, #0f1115);
+  --st-muted: var(--dsw-alias-label-secondary, #61666b);
+  --st-line: var(--dsw-alias-border-l2, #0000001a);
+  --st-accent: var(--dsw-alias-button-primary-fill, #0f1115);
+  --st-accent-foreground: var(--dsw-alias-label-primary-foreground, #ffffff);
+  --st-accent-strong: var(--dsw-alias-button-primary-hover, #303236);
+  --st-accent-soft: var(--dsw-alias-button-primary-dimmed, #f4f4f5);
+  --st-focus: var(--dsw-alias-state-business-primary, #4176e6);
+  --st-warm: #92784c;
+  --st-warm-soft: #f8f2e7;
+  --st-error: #aa4942;
+  --st-error-soft: #fbefed;
+  --st-shadow: 0 8px 32px #00000006;
+  color-scheme: light;
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  min-height: 780px;
+  width: 100%;
+  background: var(--st-bg);
+  color: var(--st-text);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  isolation: isolate;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+
+.strata-app[data-strata-theme="dark"],
+:where(body[data-ds-dark-theme], .dark, [data-theme="dark"], [data-color-scheme="dark"]) .strata-app[data-strata-theme="auto"] {
+  --st-bg: var(--dsw-alias-bg-base, #151517);
+  --st-surface: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1, #1b1b1c));
+  --st-sidebar: var(--dsw-specific-sidebar-fill, #1b1b1c);
+  --st-subtle: var(--dsw-alias-bg-layer-2, #262628);
+  --st-text: var(--dsw-alias-label-primary, #f9fafb);
+  --st-muted: var(--dsw-alias-label-secondary, #a7acb2);
+  --st-line: var(--dsw-alias-border-l2, #ffffff1f);
+  --st-accent: var(--dsw-alias-button-primary-fill, #f9fafb);
+  --st-accent-foreground: var(--dsw-alias-label-primary-foreground, #0f1115);
+  --st-accent-strong: var(--dsw-alias-button-primary-hover, #d9dde3);
+  --st-accent-soft: var(--dsw-alias-button-primary-dimmed, #262628);
+  --st-focus: var(--dsw-alias-state-business-primary, #7aaaff);
+  --st-warm: #d4b882;
+  --st-warm-soft: #3c3526;
+  --st-error: #f0a29a;
+  --st-error-soft: #3b2928;
+  --st-shadow: 0 8px 32px #00000015;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .strata-app[data-strata-theme="auto"] {
+    --st-bg: var(--dsw-alias-bg-base, #151517); --st-surface: var(--dsw-alias-settings-card-fill, var(--dsw-alias-bg-layer-1, #1b1b1c)); --st-sidebar: var(--dsw-specific-sidebar-fill, #1b1b1c); --st-subtle: var(--dsw-alias-bg-layer-2, #262628);
+    --st-text: var(--dsw-alias-label-primary, #f9fafb); --st-muted: var(--dsw-alias-label-secondary, #a7acb2); --st-line: var(--dsw-alias-border-l2, #ffffff1f); --st-accent: var(--dsw-alias-button-primary-fill, #f9fafb);
+    --st-accent-foreground: var(--dsw-alias-label-primary-foreground, #0f1115); --st-accent-strong: var(--dsw-alias-button-primary-hover, #d9dde3); --st-accent-soft: var(--dsw-alias-button-primary-dimmed, #262628); --st-focus: var(--dsw-alias-state-business-primary, #7aaaff); --st-warm: #d4b882; --st-warm-soft: #3c3526;
+    --st-error: #f0a29a; --st-error-soft: #3b2928; --st-shadow: 0 8px 32px #00000015; color-scheme: dark;
+  }
+}
+
+/* The installed panel follows DSH's selected theme, including when it differs
+   from the operating-system preference used by the standalone preview. */
+.strata-app[data-strata-theme="host"] { font-family: inherit; color-scheme: inherit; }
+body[data-ds-dark-theme] .strata-app[data-strata-theme="host"] { --st-warm: #d4b882; --st-warm-soft: #3c3526; --st-error: #f0a29a; --st-error-soft: #3b2928; }
+
+.strata-app *, .strata-app *::before, .strata-app *::after { box-sizing: border-box; }
+.strata-app [hidden] { display: none !important; }
+.strata-app button, .strata-app input, .strata-app textarea, .strata-app select { font: inherit; }
+.strata-app button { cursor: pointer; }
+.strata-app button:disabled { cursor: not-allowed; opacity: .55; }
+.strata-app :where(button, input, textarea, select, a):focus-visible { outline: 3px solid color-mix(in srgb, var(--st-focus) 50%, transparent); outline-offset: 3px; }
+.strata-app :where(h1, h2, h3, p) { margin: 0; }
+.strata-app .strata-icon { width: 20px; height: 20px; flex: 0 0 auto; }
+.strata-app .strata-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+
+.strata-sidebar { background: var(--st-sidebar); border-right: 1px solid var(--st-line); padding: 34px 20px 25px; display: flex; flex-direction: column; min-width: 0; }
+.strata-brand { display: flex; gap: 11px; align-items: center; padding: 0 7px 43px; }
+.strata-brand-mark { display: grid; place-items: center; width: 38px; height: 42px; border-radius: 11px; background: var(--st-text); color: var(--st-bg); transform: rotate(-3deg); }
+.strata-brand-mark .strata-icon { width: 25px; height: 25px; }
+.strata-brand strong { display: block; font-size: 19px; letter-spacing: 4px; line-height: 1.3; font-weight: 720; }
+.strata-brand span { display: block; color: var(--st-muted); font-size: 10px; letter-spacing: 4px; margin-top: 4px; }
+.strata-nav-label { padding: 0 15px 13px; font-size: 10px; color: var(--st-muted); letter-spacing: 1.3px; }
+.strata-navigation { display: grid; gap: 7px; }
+.strata-nav-item { border: 0; background: transparent; color: var(--st-muted); display: flex; gap: 11px; align-items: center; text-align: left; padding: 13px 13px; border-radius: 10px; font-size: 13px !important; transition: background .15s, color .15s; }
+.strata-nav-item:hover { background: color-mix(in srgb, var(--st-surface) 55%, transparent); color: var(--st-text); }
+.strata-nav-item.is-active { background: var(--st-surface); color: var(--st-accent); box-shadow: 0 2px 9px #00000005; font-weight: 650; }
+.strata-nav-item .strata-icon { width: 18px; height: 18px; }
+.strata-nav-arrow { margin-left: auto; width: 12px !important; opacity: 0; }
+.strata-nav-item.is-active .strata-nav-arrow { opacity: .8; }
+.strata-sidebar-foot { margin-top: auto; padding: 80px 10px 0; }
+.strata-sidebar-foot > strong { display: block; font-size: 12px; font-weight: 600; margin-top: 18px; }
+.strata-sidebar-foot > p { font-size: 11px; color: var(--st-muted); line-height: 1.8; margin-top: 6px; }
+.strata-side-illustration { height: 41px; position: relative; width: 70px; }
+.strata-side-illustration i { display: block; position: absolute; left: 0; width: 65px; height: 24px; border: 1px solid color-mix(in srgb, var(--st-accent) 25%, transparent); border-radius: 6px; transform: skewY(-9deg); background: var(--st-sidebar); }
+.strata-side-illustration i:nth-child(1) { top: 18px; }
+.strata-side-illustration i:nth-child(2) { top: 9px; }
+.strata-side-illustration i:nth-child(3) { top: 0; background: var(--st-accent-soft); }
+.strata-connection { display: flex; align-items: center; gap: 7px; border-top: 1px solid var(--st-line); padding-top: 20px; margin-top: 25px; font-size: 10px; color: var(--st-muted); }
+.strata-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--st-accent); box-shadow: 0 0 0 3px var(--st-accent-soft); }
+.strata-connection--error .strata-status-dot { background: var(--st-error); box-shadow: 0 0 0 3px var(--st-error-soft); }
+
+.strata-main { padding: 43px clamp(24px, 4vw, 56px) 30px; min-width: 0; max-width: 1260px; width: 100%; margin-inline: auto; }
+.strata-page-header { display: flex; justify-content: space-between; align-items: center; gap: 22px; margin-bottom: 31px; }
+.strata-eyebrow { color: var(--st-accent); font-size: 10px; font-weight: 700; letter-spacing: 2.2px; margin-bottom: 11px; }
+.strata-page-header h1 { font-size: clamp(23px, 2.4vw, 29px); letter-spacing: -.8px; font-weight: 650; line-height: 1.35; }
+.strata-page-header p { margin-top: 11px; font-size: 12px; color: var(--st-muted); line-height: 1.8; }
+.strata-page-header > .strata-button { flex-shrink: 0; }
+.strata-button { border: 1px solid var(--st-line); border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 15px; min-height: 40px; background: var(--st-surface); color: var(--st-text); font-size: 12px !important; font-weight: 600 !important; line-height: 1.35; white-space: nowrap; transition: background .15s, border-color .15s, transform .15s; }
+.strata-button .strata-icon { width: 16px; height: 16px; }
+.strata-button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--st-accent) 45%, var(--st-line)); background: var(--st-subtle); }
+.strata-button:active:not(:disabled) { transform: translateY(1px); }
+.strata-button--primary { color: var(--st-accent-foreground); background: var(--st-accent); border-color: var(--st-accent); }
+.strata-button--primary:hover:not(:disabled) { background: var(--st-accent-strong); border-color: var(--st-accent-strong); }
+.strata-button--ghost { background: transparent; border-color: transparent; color: var(--st-accent); padding-inline: 9px; }
+.strata-button--ghost:hover:not(:disabled) { background: var(--st-accent-soft); border-color: transparent; }
+.strata-button--icon { padding: 9px; width: 36px; height: 36px; min-height: 36px; border-color: transparent; background: transparent; }
+.strata-button--icon > span { display: none; }
+.strata-button-group { display: flex; gap: 8px; align-items: center; }
+.strata-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 19px; }
+.strata-stat { background: var(--st-surface); border: 1px solid var(--st-line); border-radius: 13px; padding: 22px 23px; box-shadow: var(--st-shadow); }
+.strata-stat-top { display: flex; align-items: center; justify-content: space-between; gap: 9px; color: var(--st-muted); font-size: 12px; }
+.strata-stat-top .strata-icon { width: 17px; height: 17px; color: var(--st-accent); opacity: .75; }
+.strata-stat-value { display: block; font-size: 35px; font-weight: 600; line-height: 1.2; letter-spacing: -1.6px; font-variant-numeric: tabular-nums; margin-top: 12px; }
+.strata-stat-note { font-size: 10px; color: var(--st-muted); display: block; margin-top: 9px; }
+.strata-scope-banner { display: flex; align-items: center; gap: 14px; padding: 17px 20px; margin-bottom: 29px; background: var(--st-accent-soft); border: 1px solid color-mix(in srgb, var(--st-accent) 13%, transparent); border-radius: 11px; }
+.strata-scope-symbol { width: 34px; height: 34px; display: grid; place-items: center; background: color-mix(in srgb, var(--st-surface) 65%, transparent); border-radius: 9px; color: var(--st-accent); }
+.strata-scope-symbol .strata-icon { width: 18px; height: 18px; }
+.strata-scope-copy { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.strata-scope-copy strong { color: var(--st-accent); font-size: 11px; font-weight: 600; }
+.strata-scope-copy > span { font-size: 12px; overflow-wrap: anywhere; }
+.strata-panel { background: var(--st-surface); border: 1px solid var(--st-line); border-radius: 13px; margin-bottom: 20px; box-shadow: var(--st-shadow); overflow: hidden; }
+.strata-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; }
+.strata-panel-heading h2 { font-size: 15px; font-weight: 650; }
+.strata-panel-heading p { font-size: 11px; color: var(--st-muted); margin-top: 5px; }
+.strata-toolbar { display: flex; gap: 12px; padding: 0 24px 20px; }
+.strata-input { width: 100%; min-width: 0; border: 1px solid var(--st-line); border-radius: 8px; background: var(--st-surface); color: var(--st-text); padding: 10px 12px; min-height: 41px; font-size: 12px !important; transition: border-color .15s, box-shadow .15s; }
+.strata-input::placeholder { color: color-mix(in srgb, var(--st-muted) 75%, transparent); }
+.strata-input:focus { border-color: var(--st-accent); box-shadow: 0 0 0 3px var(--st-accent-soft); }
+.strata-search { flex: 1; position: relative; }
+.strata-search > .strata-icon { position: absolute; width: 16px; height: 16px; left: 12px; top: 12px; color: var(--st-muted); }
+.strata-search .strata-input { padding-left: 37px; background: var(--st-subtle); border-color: transparent; }
+.strata-kind-select { flex: 0 0 145px; width: 145px; }
+.strata-record-list { border-top: 1px solid var(--st-line); min-height: 160px; }
+.strata-record-list[aria-busy="true"] { opacity: .6; transition: opacity .15s; }
+.strata-record { width: 100%; display: flex; align-items: center; gap: 15px; padding: 19px 24px; border: 0; border-bottom: 1px solid var(--st-line); background: transparent; color: var(--st-text); text-align: left; }
+.strata-record:last-child { border-bottom: 0; }
+.strata-record:hover { background: var(--st-subtle); }
+.strata-record-symbol { width: 36px; height: 42px; display: grid; place-items: center; background: var(--st-subtle); border: 1px solid var(--st-line); color: var(--st-muted); border-radius: 8px; flex-shrink: 0; }
+.strata-record-symbol .strata-icon { width: 19px; height: 19px; }
+.strata-record-symbol.is-idea { background: var(--st-warm-soft); color: var(--st-warm); border-color: transparent; }
+.strata-record-copy { min-width: 0; flex: 1; }
+.strata-record-title { display: flex; gap: 10px; align-items: center; }
+.strata-record-title strong { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strata-record-copy > p { font-size: 11px; color: var(--st-muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strata-record-meta { display: flex; flex-wrap: wrap; gap: 12px; color: var(--st-muted); font-size: 10px; margin-top: 9px; }
+.strata-record > .strata-icon { width: 14px; height: 14px; color: var(--st-muted); }
+.strata-badge { display: inline-flex; align-items: center; border-radius: 5px; padding: 3px 7px; font-size: 9px; font-weight: 500; line-height: 1.4; white-space: nowrap; }
+.strata-badge--muted { color: var(--st-muted); background: var(--st-subtle); }
+.strata-badge--warm { color: var(--st-warm); background: var(--st-warm-soft); }
+.strata-badge--success { color: var(--st-accent); background: var(--st-accent-soft); }
+.strata-empty { display: flex; align-items: center; flex-direction: column; padding: 45px 20px 48px; text-align: center; }
+.strata-empty-symbol { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 17px; background: var(--st-subtle); color: var(--st-accent); margin-bottom: 17px; }
+.strata-empty-symbol .strata-icon { width: 26px; height: 26px; }
+.strata-empty h3 { font-size: 14px; font-weight: 600; }
+.strata-empty p { color: var(--st-muted); font-size: 12px; margin: 7px 0 20px; }
+.strata-page-foot { display: flex; gap: 7px; align-items: flex-start; color: var(--st-muted); font-size: 10px; margin: 22px 2px 0; }
+.strata-page-foot .strata-icon { width: 13px; height: 13px; margin-top: 2px; }
+
+.strata-form { padding: 2px 24px 24px; }
+.strata-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.strata-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.strata-label { font-size: 12px; font-weight: 600; }
+.strata-hint { color: var(--st-muted); font-size: 10px; }
+.strata-form-actions { display: flex; justify-content: flex-end; padding-top: 20px; margin-top: 12px; border-top: 1px solid var(--st-line); }
+.strata-scope-options { border: 0; padding: 0; margin: 0 0 25px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.strata-choice { display: flex; flex-direction: column; position: relative; border: 1px solid var(--st-line); border-radius: 11px; padding: 22px; cursor: pointer; transition: background .15s, border-color .15s; }
+.strata-choice > input { position: absolute; top: 20px; right: 20px; width: 18px; min-height: 0; height: 18px; accent-color: var(--st-accent); margin: 0; }
+.strata-choice.is-selected { border-color: var(--st-accent); background: color-mix(in srgb, var(--st-accent-soft) 50%, var(--st-surface)); box-shadow: inset 0 0 0 1px var(--st-accent); }
+.strata-choice-symbol { display: grid; place-items: center; width: 39px; height: 39px; border-radius: 11px; color: var(--st-accent); background: var(--st-subtle); margin-bottom: 18px; }
+.strata-choice.is-selected .strata-choice-symbol { background: var(--st-accent-soft); }
+.strata-choice strong { font-weight: 600; font-size: 14px; }
+.strata-choice p { color: var(--st-muted); font-size: 11px; line-height: 1.8; margin-top: 7px; max-width: 270px; }
+.strata-choice-check { display: none; }
+.strata-folder-fields { padding: 21px; background: var(--st-subtle); border-radius: 10px; margin-bottom: 22px; }
+.strata-folder-fields .strata-field { margin-bottom: 14px; }
+.strata-input-actions { display: flex; gap: 8px; }
+.strata-input-actions .strata-input { flex: 1; }
+.strata-check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.strata-check-row > input { width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--st-accent); margin: 0; }
+.strata-setting-summary { display: flex; align-items: flex-start; gap: 10px; color: var(--st-muted); font-size: 11px; line-height: 1.85; }
+.strata-setting-summary .strata-icon { width: 16px; height: 16px; margin-top: 2px; color: var(--st-accent); }
+.strata-current-context { display: flex; gap: 12px; align-items: center; border: 1px dashed var(--st-line); border-radius: 10px; padding: 18px 22px; color: var(--st-muted); }
+.strata-current-context > div { display: grid; gap: 5px; min-width: 0; }
+.strata-current-context span { font-size: 10px; }
+.strata-current-context code { font-size: 12px; color: var(--st-text); overflow-wrap: anywhere; }
+
+.strata-transfer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.strata-transfer-card { background: var(--st-surface); border: 1px solid var(--st-line); border-radius: 14px; padding: 28px; display: flex; flex-direction: column; align-items: flex-start; box-shadow: var(--st-shadow); }
+.strata-transfer-card--import { background: linear-gradient(150deg, var(--st-surface), color-mix(in srgb, var(--st-accent-soft) 25%, var(--st-surface))); }
+.strata-transfer-symbol { width: 48px; height: 48px; border-radius: 14px; background: var(--st-accent-soft); color: var(--st-accent); display: grid; place-items: center; margin-bottom: 25px; }
+.strata-transfer-symbol .strata-icon { width: 23px; height: 23px; }
+.strata-transfer-card h2 { font-size: 20px; font-weight: 600; letter-spacing: -.5px; }
+.strata-transfer-card > p { color: var(--st-muted); font-size: 12px; line-height: 1.9; margin: 10px 0 27px; }
+.strata-transfer-card > .strata-field { width: 100%; }
+.strata-transfer-card > .strata-button { width: 100%; }
+.strata-transfer-card:first-child > .strata-field { margin-top: 14px; }
+.strata-transfer-card:first-child > .strata-button { margin-top: auto; }
+.strata-transfer-note { display: flex; align-items: center; justify-content: center; width: 100%; gap: 6px; margin-top: 16px; color: var(--st-muted); font-size: 10px; }
+.strata-transfer-note .strata-icon { width: 13px; height: 13px; }
+.strata-dropzone { border: 1.5px dashed color-mix(in srgb, var(--st-accent) 35%, var(--st-line)); display: flex; align-items: center; flex-direction: column; width: 100%; border-radius: 10px; padding: 21px 14px; position: relative; cursor: pointer; text-align: center; margin-bottom: 20px; background: color-mix(in srgb, var(--st-subtle) 65%, transparent); transition: background .15s, border-color .15s; }
+.strata-dropzone:hover, .strata-dropzone.is-dragging { background: var(--st-accent-soft); border-color: var(--st-accent); }
+.strata-dropzone:focus-within { outline: 3px solid color-mix(in srgb, var(--st-accent) 50%, transparent); outline-offset: 3px; }
+.strata-dropzone > .strata-icon { color: var(--st-accent); margin-bottom: 12px; }
+.strata-dropzone strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; max-width: 100%; }
+.strata-dropzone > span { font-size: 10px; color: var(--st-muted); margin-top: 5px; }
+.strata-file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.strata-preview-area { margin-top: 25px; }
+.strata-preview-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 0 24px 24px; }
+.strata-mini-stat { padding: 16px; border-radius: 9px; background: var(--st-subtle); display: grid; gap: 6px; }
+.strata-mini-stat strong { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.strata-mini-stat span { color: var(--st-muted); font-size: 10px; }
+.strata-preview-messages { padding: 0 24px; }
+.strata-preview-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; border-top: 1px solid var(--st-line); padding: 20px 24px; }
+.strata-preview-footer > span { color: var(--st-muted); font-size: 11px; overflow-wrap: anywhere; }
+.strata-preview-area .strata-panel > div > .strata-note { margin-inline: 24px; }
+.strata-conflicts { padding: 0 24px 18px; font-size: 11px; overflow-wrap: anywhere; }
+.strata-conflicts h3 { font-size: 12px; margin-bottom: 8px; }
+.strata-conflicts ul { padding-left: 18px; color: var(--st-muted); }
+.strata-import-folder { display: grid; gap: 10px; }
+.strata-import-scope-hint:empty { display: none; }
+.strata-import-scope-hint .strata-note { margin: 0; }
+.strata-preview-scopes { display: grid; grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr); gap: 16px; align-items: center; padding: 4px 24px 24px; }
+.strata-preview-scopes > div { min-width: 0; display: grid; gap: 6px; }
+.strata-preview-scopes span { color: var(--st-muted); font-size: 10px; }
+.strata-preview-scopes strong { font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.strata-choice > input { padding: 0; }
+.strata-app input:disabled, .strata-app select:disabled { opacity: .55; cursor: not-allowed; }
+.strata-panel > .strata-button-group { padding: 0 24px 24px; flex-wrap: wrap; }
+.strata-export-contents { display: grid; gap: 20px; padding: 22px 0 28px; }
+.strata-export-contents .strata-principle { display: grid; grid-template-columns: 24px minmax(0, 1fr); column-gap: 12px; padding: 0; }
+.strata-export-contents .strata-icon { grid-row: span 2; margin-top: 2px; }
+.strata-export-contents .strata-principle p { margin-top: 3px; }
+.strata-list-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 24px; }
+.strata-list-footer > span { font-size: 11px; color: var(--st-muted); }
+.strata-evidence-area { margin-top: 24px; }
+.strata-evidence-area h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+.strata-evidence-controls { display: flex; gap: 10px; align-items: center; }
+.strata-evidence-controls select { min-width: 0; flex: 1; }
+.strata-evidence-meta { font-size: 10px; color: var(--st-muted); margin: 16px 0 10px; overflow-wrap: anywhere; }
+.strata-evidence-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow-y: auto; margin: 0 0 12px; border: 1px solid var(--st-line); background: var(--st-subtle); border-radius: 8px; padding: 14px; font-family: inherit; font-size: 12px; line-height: 1.9; }
+.strata-evidence-output .strata-note { margin-top: 14px; }
+
+.strata-note { display: flex; align-items: flex-start; gap: 9px; padding: 13px 15px; border-radius: 8px; background: var(--st-subtle); color: var(--st-muted); font-size: 11px; line-height: 1.8; margin-bottom: 18px; overflow-wrap: anywhere; }
+.strata-note > .strata-icon { width: 15px; height: 15px; margin-top: 2px; flex-shrink: 0; }
+.strata-note--warning { color: var(--st-warm); background: var(--st-warm-soft); }
+.strata-note--error { color: var(--st-error); background: var(--st-error-soft); }
+.strata-note--success { color: var(--st-accent); background: var(--st-accent-soft); }
+.strata-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 3px 24px 24px; margin-bottom: 25px; border-bottom: 1px solid var(--st-line); }
+.strata-toggle-row strong { font-size: 13px; font-weight: 600; }
+.strata-toggle-row p { color: var(--st-muted); font-size: 11px; margin-top: 5px; }
+.strata-toggle { display: block; position: relative; width: 41px; height: 24px; flex-shrink: 0; cursor: pointer; }
+.strata-toggle input { position: absolute; inset: 0; margin: 0; width: 100%; height: 100%; opacity: 0; z-index: 1; cursor: pointer; }
+.strata-toggle > span { display: block; width: 100%; height: 100%; background: var(--st-line); border-radius: 20px; transition: background .15s; }
+.strata-toggle > span::after { content: ''; display: block; position: absolute; width: 18px; height: 18px; border-radius: 50%; left: 3px; top: 3px; background: var(--st-surface); box-shadow: 0 1px 4px #0002; transition: transform .15s; }
+.strata-toggle input:checked + span { background: var(--st-accent); }
+.strata-toggle input:checked + span::after { transform: translateX(17px); }
+.strata-toggle:focus-within { outline: 3px solid color-mix(in srgb, var(--st-accent) 50%, transparent); outline-offset: 3px; border-radius: 20px; }
+.strata-principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 26px; }
+.strata-principle { padding: 4px 5px; }
+.strata-principle .strata-icon { display: block; color: var(--st-accent); width: 18px; height: 18px; margin-bottom: 12px; }
+.strata-principle strong { font-size: 12px; font-weight: 600; }
+.strata-principle p { font-size: 11px; color: var(--st-muted); line-height: 1.9; margin-top: 6px; }
+
+.strata-dialog { padding: 0; width: min(600px, calc(100vw - 36px)); border: 1px solid var(--st-line); border-radius: 15px; background: var(--st-surface); color: var(--st-text); box-shadow: 0 20px 100px #0003; max-height: min(90vh, 850px); overflow-y: auto; }
+.strata-dialog::backdrop { background: #00000066; backdrop-filter: blur(4px); }
+.strata-dialog-head { padding: 25px 27px 20px; display: flex; justify-content: space-between; gap: 15px; border-bottom: 1px solid var(--st-line); }
+.strata-dialog-head h2 { font-size: 19px; font-weight: 650; }
+.strata-dialog-head p { color: var(--st-muted); font-size: 11px; margin-top: 7px; }
+.strata-dialog-body { padding: 24px 27px; }
+.strata-dialog-body .strata-form { padding: 0; }
+.strata-dialog-body .strata-note:last-child { margin-bottom: 0; }
+.strata-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; padding: 18px 27px; background: var(--st-subtle); border-top: 1px solid var(--st-line); }
+.strata-textarea { resize: vertical; line-height: 1.9; min-height: 140px; }
+.strata-record-detail { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.95; max-height: 380px; overflow: auto; }
+.strata-detail-meta { display: grid; grid-template-columns: 90px minmax(0, 1fr); font-size: 11px; border-top: 1px solid var(--st-line); padding-top: 18px; margin-top: 25px; gap: 10px; }
+.strata-detail-meta dt { color: var(--st-muted); }
+.strata-detail-meta dd { margin: 0; overflow-wrap: anywhere; }
+.strata-notifications { position: fixed; right: 25px; bottom: 25px; z-index: 10010; max-width: min(450px, calc(100vw - 40px)); pointer-events: none; }
+.strata-toast { display: flex; align-items: flex-start; gap: 9px; border: 1px solid var(--st-line); background: var(--st-surface); box-shadow: 0 8px 35px #0002; border-radius: 10px; color: var(--st-text); padding: 15px 18px; font-size: 12px; animation: strata-appear .18s ease-out; }
+.strata-toast .strata-icon { color: var(--st-accent); width: 17px; height: 17px; margin-top: 1px; }
+.strata-toast--error .strata-icon { color: var(--st-error); }
+.strata-loading { min-height: 420px; display: flex; justify-content: center; align-items: center; flex-direction: column; gap: 18px; color: var(--st-muted); font-size: 12px; }
+.strata-spinner { width: 16px; height: 16px; display: inline-block; border: 2px solid currentColor; border-right-color: transparent; opacity: .8; border-radius: 50%; animation: strata-spin .7s linear infinite; flex-shrink: 0; }
+@keyframes strata-spin { to { transform: rotate(360deg); } }
+@keyframes strata-appear { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+@container strata (max-width: 1050px) {
+  .strata-app { grid-template-columns: 195px minmax(0, 1fr); }
+  .strata-sidebar { padding-inline: 13px; }
+  .strata-main { padding-inline: 25px; }
+  .strata-transfer-card { padding: 23px; }
+  .strata-page-header { align-items: flex-start; }
+  .strata-stat { padding: 19px; }
+  .strata-stat-note { font-size: 9px; }
+}
+@container strata (max-width: 800px) {
+  .strata-app { grid-template-columns: 1fr; min-height: 720px; }
+  .strata-sidebar { border-right: 0; border-bottom: 1px solid var(--st-line); padding: 18px 22px 0; }
+  .strata-brand { padding: 0 0 18px; }
+  .strata-brand-mark { width: 31px; height: 34px; border-radius: 8px; }
+  .strata-brand-mark .strata-icon { width: 21px; height: 21px; }
+  .strata-brand strong { font-size: 15px; letter-spacing: 3px; }
+  .strata-brand span { font-size: 9px; letter-spacing: 2px; margin-top: 1px; }
+  .strata-nav-label, .strata-sidebar-foot { display: none; }
+  .strata-navigation { display: flex; gap: 7px; overflow-x: auto; padding-bottom: 12px; }
+  .strata-nav-item { white-space: nowrap; gap: 8px; padding: 10px 13px; font-size: 12px !important; flex: 1; }
+  .strata-nav-arrow { display: none; }
+  .strata-main { padding: 29px 22px; }
+  .strata-page-header h1 { font-size: 23px; }
+  .strata-page-header p { max-width: 400px; }
+  .strata-transfer-grid { gap: 15px; }
+}
+@container strata (max-width: 560px) {
+  .strata-main { padding: 25px 16px; }
+  .strata-sidebar { padding-inline: 16px; }
+  .strata-nav-item { padding: 10px; font-size: 11px !important; justify-content: center; }
+  .strata-nav-item .strata-icon { display: none; }
+  .strata-page-header { flex-wrap: wrap; gap: 17px; margin-bottom: 23px; }
+  .strata-page-header h1 { font-size: 22px; }
+  .strata-page-header p { font-size: 11px; }
+  .strata-stats { gap: 9px; }
+  .strata-stat { padding: 15px 12px; border-radius: 10px; }
+  .strata-stat-top { font-size: 10px; }
+  .strata-stat-top .strata-icon { display: none; }
+  .strata-stat-value { font-size: 28px; }
+  .strata-stat-note { display: none; }
+  .strata-scope-banner { padding: 13px; gap: 9px; margin-bottom: 23px; }
+  .strata-scope-symbol { display: none; }
+  .strata-scope-copy > span { font-size: 11px; }
+  .strata-scope-banner .strata-button { font-size: 10px !important; }
+  .strata-panel-heading { padding: 18px; }
+  .strata-toolbar { padding: 0 18px 16px; flex-wrap: wrap; }
+  .strata-search { flex-basis: 100%; }
+  .strata-kind-select { width: 100%; flex-basis: 100%; }
+  .strata-record { padding: 16px 18px; gap: 11px; }
+  .strata-record-symbol { display: none; }
+  .strata-record-title { gap: 6px; }
+  .strata-form { padding-inline: 18px; }
+  .strata-form-grid, .strata-scope-options, .strata-transfer-grid { grid-template-columns: 1fr; }
+  .strata-scope-options { gap: 11px; }
+  .strata-choice { padding: 18px; }
+  .strata-choice-symbol { margin-bottom: 11px; }
+  .strata-input-actions { flex-wrap: wrap; }
+  .strata-input-actions .strata-input { flex-basis: 100%; }
+  .strata-folder-fields { padding: 17px; }
+  .strata-transfer-card { padding: 23px; }
+  .strata-preview-stats { padding-inline: 18px; grid-template-columns: repeat(2, 1fr); }
+  .strata-preview-footer { flex-direction: column; align-items: stretch; padding: 18px; }
+  .strata-preview-footer .strata-button-group { justify-content: flex-end; }
+  .strata-principles { grid-template-columns: 1fr; gap: 18px; }
+  .strata-principle { display: grid; grid-template-columns: 22px 1fr; column-gap: 11px; padding: 0; }
+  .strata-principle .strata-icon { grid-row: span 2; margin-top: 2px; }
+  .strata-principle p { margin-top: 2px; }
+  .strata-toggle-row { padding-inline: 18px; }
+  .strata-dialog-head, .strata-dialog-body, .strata-dialog-actions { padding-inline: 20px; }
+  .strata-dialog .strata-form-grid { gap: 0; }
+  .strata-notifications { right: 16px; bottom: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .strata-app *, .strata-app *::before, .strata-app *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

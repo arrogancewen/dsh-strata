@@ -1,0 +1,63 @@
+{
+  "name": "dsh-strata",
+  "version": "0.1.3",
+  "description": "Local, versioned memory for DeepSeek Harness with scoped recall and portable import/export.",
+  "type": "module",
+  "main": "./src/host/index.mjs",
+  "exports": {
+    ".": "./src/host/index.mjs",
+    "./client": "./lib/client.js",
+    "./core": "./src/core/index.mjs",
+    "./application": "./src/application.mjs",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "client",
+    "lib",
+    "scripts",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md"
+  ],
+  "engines": {
+    "node": ">=22.13",
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test --test-concurrency=1 tests/*.test.mjs",
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "test:dsh": "node scripts/verify-local-dsh.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arrogancewen/dsh-strata.git"
+  },
+  "homepage": "https://github.com/arrogancewen/dsh-strata#readme",
+  "bugs": {
+    "url": "https://github.com/arrogancewen/dsh-strata/issues"
+  },
+  "private": true,
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

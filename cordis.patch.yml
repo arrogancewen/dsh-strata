@@ -1,0 +1,9 @@
+# DSH 0.2.1-rc.2 bundle overlay. The package's dsh.client manifest also
+# contributes its settings panel to Web/Desktop client module graphs.
+# To use a different memory directory, override this row in the profile patch:
+# - id: dsh-strata
+#   config:
+#     root: 'D:/memory/strata'
+- insert:
+    - id: dsh-strata
+      name: 'dsh-strata'
