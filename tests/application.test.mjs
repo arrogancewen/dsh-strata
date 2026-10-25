@@ -137,6 +137,54 @@ test('session tools are blocked when manual memory is off', async t => {
   await app.dispatch('records.remember', { record: { title: '自动模式可写', gist: '开启自动记住后允许' } }, authority);
 });
 
+test('manual and automatic memory can be enabled together and never interfere', async t => {
+  const { app } = await fixture(t);
+  const authority = { admin: false, sessionId: 'session-both', cwd: app.store.root };
+  const admin = { admin: true };
+  const writeSession = label =>
+    app.dispatch('records.remember', { record: { title: label, gist: label } }, authority);
+
+  // 四种组合的写入许可矩阵：唯一被拒的是「两个都关」。
+  const matrix = [
+    { manual: true, auto: true, allowed: true },
+    { manual: true, auto: false, allowed: true },
+    { manual: false, auto: true, allowed: true },
+    { manual: false, auto: false, allowed: false },
+  ];
+  for (const row of matrix) {
+    await app.dispatch('settings.update', {
+      patch: { manualMemoryEnabled: row.manual, capture: { enabled: row.auto } },
+    }, admin);
+    if (row.allowed) {
+      const saved = await writeSession(`m${row.manual}-a${row.auto}`);
+      assert.equal(saved.title, `m${row.manual}-a${row.auto}`);
+    } else {
+      await assert.rejects(writeSession('blocked'), { code: 'manual_memory_disabled' });
+    }
+  }
+
+  // 两个开关同时开启后，状态必须同时为真。
+  await app.dispatch('settings.update', { patch: { manualMemoryEnabled: true, capture: { enabled: true } } }, admin);
+  let settings = await app.dispatch('settings.get', {}, admin);
+  assert.equal(settings.manualMemoryEnabled, true);
+  assert.equal(settings.capture.enabled, true);
+
+  // 只改手动或只改自动，另一方都不允许被隐式改动。
+  const modes = ['model', 'interval', 'context'];
+  for (const mode of modes) {
+    await app.dispatch('settings.update', { patch: { manualMemoryEnabled: true, capture: { enabled: true, mode } } }, admin);
+    await app.dispatch('settings.update', { patch: { manualMemoryEnabled: true } }, admin);
+    settings = await app.dispatch('settings.get', {}, admin);
+    assert.equal(settings.capture.enabled, true, `改手动不应关掉自动（${mode}）`);
+    assert.equal(settings.capture.mode, mode, `改手动不应改自动模式（${mode}）`);
+
+    await app.dispatch('settings.update', { patch: { capture: { enabled: true, mode } } }, admin);
+    settings = await app.dispatch('settings.get', {}, admin);
+    assert.equal(settings.manualMemoryEnabled, true, `改自动不应关掉手动（${mode}）`);
+    assert.equal(settings.capture.mode, mode);
+  }
+});
+
 test('partial task updates preserve body and require the expected revision', async t => {
   const { app } = await fixture(t);
   const task = await app.dispatch('records.remember', { record: { title: '导入任务', gist: '应保留的任务正文', kind: 'task' } });
