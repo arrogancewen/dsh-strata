@@ -50,6 +50,21 @@ test('model memory remains unverified and idea descendants remain outside factua
   assert.equal((await app.dispatch('records.list', { kinds: ['idea'], query: '图谱' })).total, 2);
 });
 
+test('L0 fits long Chinese and emoji titles into its byte budget without losing the index', async t => {
+  const { app, inside } = await fixture(t, true);
+  const title = '蓝鲸七号 {{literal}} ' + '很长的中文记忆标题🧠'.repeat(10);
+  const record = await app.dispatch('records.remember', {record:{title,text:'端到端验证'}}, {cwd:inside});
+  const index = await app.dispatch('context.l0', {}, {cwd:inside});
+  assert.equal(index.scopeAllowed, true);
+  assert.match(index.text, /蓝鲸七号 \{\{literal\}\}/);
+  assert.ok(index.text.includes(record.id));
+  assert.match(index.text, /observation\/unverified|claim\/unverified/);
+  assert.ok(Buffer.byteLength(index.text,'utf8') <= 250);
+  assert.equal(index.text.includes('\ufffd'), false);
+  assert.ok(index.text.includes('…'));
+  assert.equal((await app.dispatch('records.zoom', {entryId:record.id}, {cwd:inside})).title,title);
+});
+
 test('model arguments cannot fabricate raw evidence or migration origin', async t => {
   const { app } = await fixture(t);
   await assert.rejects(app.dispatch('records.remember', { record: {

@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | **English**
 
-Strata is a local memory plugin for DeepSeek Harness (DSH). Version **0.1.3** provides versioned memory, scoped recall, evidence retrieval, portable import/export, and a settings panel that follows DSH's default colors and light/dark theme. The current settings interface is in Chinese.
+Strata is a local memory plugin for DeepSeek Harness (DSH). Version **0.1.4** provides versioned memory, scoped recall, evidence retrieval, portable import/export, and a settings panel that follows DSH's default colors and light/dark theme. The current settings interface is in Chinese.
 
 ## Features
 
@@ -75,7 +75,7 @@ Each recall summary contains at most **1,200 JavaScript string code units**. The
 
 Deep returns up to 8,000 string code units by default, with a maximum of 20,000 per page. Its `nextCursor` continues the archived text. A saved memory body is not automatically original conversation evidence: when evidence is absent, deep returns `source_unavailable`.
 
-The L0 index labels memory as historical material rather than current instructions. It includes record kinds and epistemic states. Its current size limit is conservative and byte-based; it is not an exact model tokenizer budget.
+The L0 index labels memory as historical material rather than current instructions. It includes record kinds and epistemic states. Titles are shortened to fit the remaining UTF-8 byte budget while retaining IDs and states, so a long Chinese title does not suppress the whole index. Its current size limit is conservative and byte-based; it is not an exact model tokenizer budget.
 
 ### Scope and authorization
 
@@ -189,6 +189,8 @@ node scripts/verify-local-dsh.mjs /absolute/path/to/dsh/node_modules
 This test uses the actual HostConnectionService registration and HTTP/RPC envelope with simulated owner admission. Client module registration is a structural check; it does not claim to render the complete Desktop application.
 
 `test:browser` uses Chrome to exercise the standalone interface with a temporary library, including real file upload/download, pagination, evidence paging, safe text rendering, narrow layouts, and dark mode. Set `CHROME_PATH` if Chrome is installed elsewhere. Reports and screenshots are written under `.artifacts` and test records are removed afterward.
+
+For an optional check in a running DSH process, enable its local Inspector and keep an idle chat open in the target working directory, then run `npm run test:live-l0 -- /absolute/path/to/project`. This borrows an existing live agent, uses a temporary memory library, checks assembled and refreshed L0 context plus scope and identity rejection, and verifies that the permanent library HEAD stays unchanged. It creates no chat, sends no test message, and invokes no memory tool. This checks the context input path directly; a model answer or a recall tool call alone does not establish whether L0 was injected.
 
 ```text
 src/core/           Storage, versions, scope, lexical search, evidence
