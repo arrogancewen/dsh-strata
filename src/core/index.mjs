@@ -1,4 +1,4 @@
-export { StrataStore } from './store.mjs';
+export { StrataStore, CAPTURE_MODES, DEFAULT_CAPTURE, DEFAULT_MANUAL_MEMORY_ENABLED } from './store.mjs';
 export { StrataError } from './errors.mjs';
 export {
   SCHEMA_VERSION, RECORD_KINDS, FACT_KINDS, SOURCE_KINDS,

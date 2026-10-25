@@ -13,6 +13,25 @@ import { physicalDirectory, normalizeScope, validateScopeShape, scopeAllows, req
 const writeQueues = new Map();
 const MAX_STATE_BYTES = 64 * 1024 * 1024;
 const DEFAULT_PROACTIVE = Object.freeze({ enabled: false, delivery: 'inbox', maxPerDay: 3, cooldownMinutes: 30, minTurnsBetween: 10, maxHintTokens: 120 });
+
+/**
+ * 自动记住的触发模式。
+ * - model：由模型自行判断是否值得记（不额外消耗调用，靠提示词与工具）
+ * - interval：每隔 N 小时（整点）触发一次
+ * - context：上下文接近压缩阈值时触发
+ */
+export const CAPTURE_MODES = Object.freeze(['model', 'interval', 'context']);
+export const DEFAULT_CAPTURE = Object.freeze({
+  enabled: false,
+  mode: 'model',
+  intervalHours: 4,
+  contextThresholdPercent: 20,
+  maxPerSession: 20,
+});
+
+/** 手动记忆（用户说「记住」时才写）总开关。 */
+export const DEFAULT_MANUAL_MEMORY_ENABLED = true;
+
 const clone = value => structuredClone(value);
 
 async function atomicWrite(destination, contents) {
@@ -41,6 +60,21 @@ function validateSettings(settings) {
   validateScopeShape(settings.scope);
   integer(settings.l0BudgetTokens, 'l0BudgetTokens', 50, 2000);
   assert(typeof settings.captureEnabled === 'boolean', 'invalid_settings', 'captureEnabled 必须是布尔值。');
+  // 手动记忆总开关：关闭后会话工具不得再写入。
+  if (settings.manualMemoryEnabled === undefined) settings.manualMemoryEnabled = DEFAULT_MANUAL_MEMORY_ENABLED;
+  assert(typeof settings.manualMemoryEnabled === 'boolean', 'invalid_settings', 'manualMemoryEnabled 必须是布尔值。');
+  // 自动记住设置：缺省补齐，再逐项校验。
+  if (settings.capture === undefined) settings.capture = { ...DEFAULT_CAPTURE };
+  const capture = settings.capture;
+  assert(capture && typeof capture === 'object' && !Array.isArray(capture), 'invalid_settings', '自动记住设置无效。');
+  for (const key of Object.keys(capture)) {
+    assert(Object.hasOwn(DEFAULT_CAPTURE, key), 'invalid_settings', `未知自动记住设置：${key}`);
+  }
+  assert(typeof capture.enabled === 'boolean', 'invalid_settings', 'capture.enabled 必须是布尔值。');
+  assert(CAPTURE_MODES.includes(capture.mode), 'invalid_settings', `自动记住模式只能是 ${CAPTURE_MODES.join(' / ')}。`);
+  integer(capture.intervalHours, 'capture.intervalHours', 1, 168);
+  integer(capture.contextThresholdPercent, 'capture.contextThresholdPercent', 1, 90);
+  integer(capture.maxPerSession, 'capture.maxPerSession', 0, 200);
   const proactive = settings.proactive;
   assert(proactive && typeof proactive.enabled === 'boolean' && ['inbox', 'occasional'].includes(proactive.delivery), 'invalid_settings', '主动记忆设置无效。');
   integer(proactive.maxPerDay, 'maxPerDay', 0, 100);
@@ -109,6 +143,8 @@ export class StrataStore {
           scope: await normalizeScope(options.initialScope ?? { mode: 'dsh' }),
           l0BudgetTokens: 250,
           captureEnabled: false,
+          manualMemoryEnabled: DEFAULT_MANUAL_MEMORY_ENABLED,
+          capture: { ...DEFAULT_CAPTURE },
           proactive: { ...DEFAULT_PROACTIVE },
         },
         records: {},
@@ -321,7 +357,7 @@ export class StrataStore {
 
   async updateSettings(patch, { expectedCommitSeq } = {}) {
     assertPlainMap(patch, 'settings');
-    for (const key of Object.keys(patch)) assert(['scope', 'proactive', 'l0BudgetTokens', 'captureEnabled'].includes(key), 'invalid_settings', `未知设置：${key}`);
+    for (const key of Object.keys(patch)) assert(['scope', 'proactive', 'l0BudgetTokens', 'captureEnabled', 'manualMemoryEnabled', 'capture'].includes(key), 'invalid_settings', `未知设置：${key}`);
     return this.transaction(async draft => {
       if (patch.scope !== undefined) draft.settings.scope = await normalizeScope(patch.scope);
       if (patch.proactive !== undefined) {
@@ -329,7 +365,20 @@ export class StrataStore {
         for (const key of Object.keys(patch.proactive)) assert(Object.hasOwn(DEFAULT_PROACTIVE, key), 'invalid_settings', `未知主动记忆设置：${key}`);
         draft.settings.proactive = { ...draft.settings.proactive, ...patch.proactive };
       }
-      for (const key of ['l0BudgetTokens', 'captureEnabled']) if (patch[key] !== undefined) draft.settings[key] = patch[key];
+      if (patch.capture !== undefined) {
+        assertPlainMap(patch.capture, 'capture');
+        for (const key of Object.keys(patch.capture)) assert(Object.hasOwn(DEFAULT_CAPTURE, key), 'invalid_settings', `未知自动记住设置：${key}`);
+        draft.settings.capture = { ...(draft.settings.capture ?? DEFAULT_CAPTURE), ...patch.capture };
+        // 自动记住与旧的 captureEnabled 是同一件事的两个名字，保持同步。
+        if (patch.capture.enabled !== undefined) draft.settings.captureEnabled = patch.capture.enabled;
+      }
+      for (const key of ['l0BudgetTokens', 'captureEnabled', 'manualMemoryEnabled']) {
+        if (patch[key] !== undefined) draft.settings[key] = patch[key];
+      }
+      // 走 captureEnabled 也要把 capture.enabled 同步过去。
+      if (patch.captureEnabled !== undefined) {
+        draft.settings.capture = { ...(draft.settings.capture ?? DEFAULT_CAPTURE), enabled: patch.captureEnabled };
+      }
       validateSettings(draft.settings);
       return draft.settings;
     }, { admin: true, expectedCommitSeq });

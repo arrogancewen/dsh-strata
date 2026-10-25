@@ -106,6 +106,7 @@ test('L0 is literal user context and never enters system sections or unrelated s
   const f = fixture();
   f.app.dispatch = async (method, params, auth) => {
     f.calls.push({ method, params, auth });
+    if (method === 'settings.get') return { capture: { enabled: false } };
     return { text: 'A title with {{secret}} and </memory>', scopeAllowed: true };
   };
   const middleware = createPromptMiddleware(f.ctx, f.app);
@@ -116,12 +117,16 @@ test('L0 is literal user context and never enters system sections or unrelated s
   assert.equal(value.contexts[0].name, CONTEXT_NAME);
   assert.equal(value.contexts[0].interpolate, false);
   assert.match(value.contexts[0].text, /\{\{secret\}\}/);
-  assert.equal(f.calls[0].method, 'context.l0');
-  assert.equal(f.calls[0].auth.admin, false);
+  // 自动记住的开关先读设置，再读 L0；两者都必须以非管理权限发起。
+  const l0 = f.calls.find(call => call.method === 'context.l0');
+  assert.ok(l0, 'context.l0 必须被调用');
+  assert.equal(l0.auth.admin, false);
+  assert.equal(f.calls.find(call => call.method === 'settings.get').auth.admin, false);
   const unrelated = assembly();
   await middleware(unrelated, { agent: f.agent, scope: {} }, async () => unrelated);
   assert.equal(unrelated.contexts.length, 0);
-  assert.equal(f.calls.length, 1);
+  const afterUnrelated = f.calls.length;
+  assert.equal(afterUnrelated, 2, '无关 scope 不应产生新的 dispatch');
 });
 
 test('L0 does not reuse cached authorization and suppresses revoked or disposed sessions', async () => {

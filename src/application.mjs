@@ -2,7 +2,8 @@ import { StrataStore } from './core/index.mjs';
 import { TransferService, fail } from './transfer.mjs';
 
 const CAPABILITIES = Object.freeze({ manualMemory: true, migration: true, scope: true, history: true,
-  autoCapture: false, capture: false, insights: 'manual-only', automaticInsights: false, personas: false, roleCards: false });
+  autoCapture: true, capture: true, captureModes: ['model', 'interval', 'context'],
+  manualMemoryToggle: true, insights: 'manual-only', automaticInsights: false, personas: false, roleCards: false });
 
 function owner(auth) { if (auth?.admin !== true) throw fail('forbidden', '此操作需要记忆空间管理权限。', 403); }
 function validParams(value) {
@@ -33,13 +34,12 @@ export async function createApplication(root, options = {}) {
         owner(auth);
         const status = await store.status();
         const settings = await store.getSettings();
-        return { ...status, scope: settings.scope, settings, capabilities: CAPABILITIES, version: '0.1.4' };
+        return { ...status, scope: settings.scope, settings, capabilities: CAPABILITIES, version: '0.1.5' };
       }
       case 'settings.get': owner(auth); return await store.getSettings();
       case 'settings.update': {
         owner(auth);
         const patch = validParams(params.patch);
-        if (patch.proactive?.enabled === true || patch.captureEnabled === true) throw fail('not_implemented', '首版支持手动记忆与灵感盒，自动采集、关联与提醒尚未启用。');
         return await store.updateSettings(patch);
       }
       case 'records.list':
@@ -72,6 +72,13 @@ export async function createApplication(root, options = {}) {
       case 'records.remember': {
         const record = validParams(params.record);
         if (!auth.admin && (record.evidence !== undefined || record.origin !== undefined)) throw fail('forbidden', '会话工具不能自行提供原始证据或导入身份；请引用已有记忆。', 403);
+        // 手动记忆总开关：管理员（设置界面）始终可写；会话工具在关闭时必须被拒绝。
+        if (!auth.admin) {
+          const settings = await store.getSettings();
+          if (settings.manualMemoryEnabled === false && settings.capture?.enabled !== true) {
+            throw fail('manual_memory_disabled', '手动记忆已关闭。可在记忆地层设置中重新开启。', 403);
+          }
+        }
         const input = { ...record };
         if (input.text === undefined && input.gist !== undefined) input.text = input.gist;
         return await store.remember(input, { ...scopeOptions, sourceKind: auth.admin ? 'user' : 'assistant', expectedRevision: params.expectedRevision });

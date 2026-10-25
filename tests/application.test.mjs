@@ -77,20 +77,64 @@ test('model arguments cannot fabricate raw evidence or migration origin', async 
   assert.equal((await app.store.status()).evidenceCount, 0);
 });
 
-test('application cannot enable unavailable automatic features and persists usable settings', async t => {
+test('application persists manual and automatic capture settings with three trigger modes', async t => {
   const { app } = await fixture(t);
   const before = await app.dispatch('settings.get', {}, { admin: true });
   assert.equal(before.captureEnabled, false);
+  assert.equal(before.capture.enabled, false);
+  assert.equal(before.capture.mode, 'model');
+  assert.equal(before.manualMemoryEnabled, true);
   assert.equal(before.proactive.enabled, false);
-  await assert.rejects(app.dispatch('settings.update', { patch: { proactive: { enabled: true } } }, { admin: true }), { code: 'not_implemented' });
-  await assert.rejects(app.dispatch('settings.update', { patch: { captureEnabled: true } }, { admin: true }), { code: 'not_implemented' });
-  await app.dispatch('settings.update', { patch: { l0BudgetTokens: 450, proactive: { maxPerDay: 2, cooldownMinutes: 60 } } }, { admin: true });
+
+  // 现在允许开启自动记住，并校验三种模式与参数。
+  await app.dispatch('settings.update', { patch: { capture: { enabled: true, mode: 'interval', intervalHours: 6 } } }, { admin: true });
+  let saved = await app.dispatch('settings.get', {}, { admin: true });
+  assert.equal(saved.capture.enabled, true);
+  assert.equal(saved.capture.mode, 'interval');
+  assert.equal(saved.capture.intervalHours, 6);
+  assert.equal(saved.captureEnabled, true, 'captureEnabled 与 capture.enabled 必须同步');
+
+  await app.dispatch('settings.update', { patch: { capture: { mode: 'context', contextThresholdPercent: 15 } } }, { admin: true });
+  saved = await app.dispatch('settings.get', {}, { admin: true });
+  assert.equal(saved.capture.mode, 'context');
+  assert.equal(saved.capture.contextThresholdPercent, 15);
+  assert.equal(saved.capture.intervalHours, 6, '无关字段必须保留');
+
+  // 非法模式与越界参数必须被拒。
+  await assert.rejects(app.dispatch('settings.update', { patch: { capture: { mode: 'nope' } } }, { admin: true }), { code: 'invalid_settings' });
+  await assert.rejects(app.dispatch('settings.update', { patch: { capture: { intervalHours: 0 } } }, { admin: true }), { code: 'invalid_settings' });
+  await assert.rejects(app.dispatch('settings.update', { patch: { capture: { contextThresholdPercent: 99 } } }, { admin: true }), { code: 'invalid_settings' });
+
+  // manualMemoryEnabled 可关闭，且持久化。
+  await app.dispatch('settings.update', { patch: { manualMemoryEnabled: false, proactive: { maxPerDay: 2, cooldownMinutes: 60 } } }, { admin: true });
   const reopened = await createApplication(app.store.root);
-  const saved = await reopened.dispatch('settings.get', {}, { admin: true });
-  assert.equal(saved.l0BudgetTokens, 450);
-  assert.equal(saved.proactive.maxPerDay, 2);
-  assert.equal(saved.proactive.cooldownMinutes, 60);
-  assert.equal(saved.captureEnabled, false);
+  const persisted = await reopened.dispatch('settings.get', {}, { admin: true });
+  assert.equal(persisted.manualMemoryEnabled, false);
+  assert.equal(persisted.proactive.maxPerDay, 2);
+  assert.equal(persisted.proactive.cooldownMinutes, 60);
+  assert.equal(persisted.capture.enabled, true);
+  assert.equal(persisted.capture.mode, 'context');
+});
+
+test('session tools are blocked when manual memory is off', async t => {
+  const { app } = await fixture(t);
+  const authority = { admin: false, sessionId: 'session-test', cwd: app.store.root };
+
+  // 默认开启，会话可以写。
+  await app.dispatch('records.remember', { record: { title: '允许写入', gist: '默认允许' } }, authority);
+
+  await app.dispatch('settings.update', { patch: { manualMemoryEnabled: false } }, { admin: true });
+  await assert.rejects(
+    app.dispatch('records.remember', { record: { title: '应被拒绝', gist: '手动记忆已关闭' } }, authority),
+    { code: 'manual_memory_disabled' },
+  );
+
+  // 管理端（设置界面）不受此开关限制。
+  await app.dispatch('records.remember', { record: { title: '管理端可写', gist: '设置界面写入' } }, { admin: true });
+
+  // 开启自动记住后，会话工具重新可用。
+  await app.dispatch('settings.update', { patch: { capture: { enabled: true } } }, { admin: true });
+  await app.dispatch('records.remember', { record: { title: '自动模式可写', gist: '开启自动记住后允许' } }, authority);
 });
 
 test('partial task updates preserve body and require the expected revision', async t => {

@@ -113,7 +113,7 @@ export async function mountStrataSettings(container, options = {}) {
   const main = node('main', { className: 'strata-main', tabindex: '-1' });
   const connection = node('div', { className: 'strata-connection' }, node('span', { className: 'strata-status-dot' }), node('span', { text: '正在连接记忆库' }));
   const navButtons = new Map();
-  const navItems = [['memory', '记忆总览', 'layers'], ['scope', '使用范围', 'folder'], ['transfer', '迁移与导入', 'transfer'], ['insights', '灵感设置', 'spark']];
+  const navItems = [['memory', '记忆总览', 'layers'], ['scope', '使用范围', 'folder'], ['transfer', '迁移与导入', 'transfer'], ['insights', '记忆写入', 'spark']];
   const sidebar = node('aside', { className: 'strata-sidebar' },
     node('div', { className: 'strata-brand' }, node('div', { className: 'strata-brand-mark' }, icon('layers')), node('div', {}, node('strong', { text: 'STRATA' }), node('span', { text: '记忆地层' }))),
     node('div', { className: 'strata-nav-label', text: '你的记忆空间' }),
@@ -511,16 +511,93 @@ export async function mountStrataSettings(container, options = {}) {
 
   function renderInsights() {
     const settings = state.settings.proactive || {};
+    const capture = state.settings.capture || { enabled: false, mode: 'model', intervalHours: 4, contextThresholdPercent: 20, maxPerSession: 20 };
     const available = state.status.capabilities?.proactive === true;
+    const captureAvailable = state.status.capabilities?.autoCapture === true;
+    const manualEnabled = state.settings.manualMemoryEnabled !== false;
+
+    main.append(header('MEMORY WRITES', '让它记得，也让你说了算。', '手动记住与自动记住各有一个开关；自动模式可选触发方式。'));
+
+    // —— 手动记忆总开关 ——
+    const manualToggle = input({ type: 'checkbox', checked: manualEnabled, role: 'switch', 'aria-label': '允许手动记住' });
+    const manualForm = node('form', {}, node('div', { className: 'strata-toggle-row' },
+      node('div', {}, node('strong', { text: '手动记住' }), node('p', { text: '你说“记住”时，或在界面上点“记一条”，才会写入记忆。' })),
+      node('label', { className: 'strata-toggle' }, manualToggle, node('span', { 'aria-hidden': 'true' }))));
+    manualForm.addEventListener('submit', event => event.preventDefault());
+    manualToggle.addEventListener('change', () => {
+      run(manualToggle, '正在保存', async () => {
+        await request('settings.update', { patch: { manualMemoryEnabled: manualToggle.checked } });
+        toast(manualToggle.checked ? '手动记住已开启。' : '手动记住已关闭。');
+        await refresh();
+      });
+    });
+    main.append(panel('手动记住', '关闭后，会话中的记忆工具会拒绝写入；设置界面仍可手动添加。', manualForm));
+
+    // —— 自动记住 + 三种模式 ——
+    const autoToggle = input({ type: 'checkbox', checked: captureAvailable && Boolean(capture.enabled), disabled: !captureAvailable, role: 'switch', 'aria-label': '启用自动记住' });
+    const modeSelect = node('select', { className: 'strata-input', disabled: !captureAvailable },
+      node('option', { value: 'model', text: '由模型判断 · 它觉得值得记时才记' }),
+      node('option', { value: 'interval', text: '按时间间隔 · 每隔 N 小时（整点）回顾一次' }),
+      node('option', { value: 'context', text: '按上下文长度 · 压缩前抢救一次' }));
+    modeSelect.value = capture.mode || 'model';
+    const hours = input({ type: 'number', min: '1', max: '168', step: '1', value: capture.intervalHours ?? 4, disabled: !captureAvailable });
+    const threshold = input({ type: 'number', min: '1', max: '90', step: '1', value: capture.contextThresholdPercent ?? 20, disabled: !captureAvailable });
+    const maxSession = input({ type: 'number', min: '0', max: '200', step: '1', value: capture.maxPerSession ?? 20, disabled: !captureAvailable });
+    const hoursField = field('间隔小时数', hours, '按整点对齐：每 N 小时的边界触发一次。');
+    const thresholdField = field('剩余上下文阈值（%）', threshold, '剩余低于该比例时提示一次，避免压缩后丢失。');
+    const modeHint = node('p', { className: 'strata-hint', text: '' });
+    function syncModeFields() {
+      const mode = modeSelect.value;
+      hoursField.hidden = mode !== 'interval';
+      thresholdField.hidden = mode !== 'context';
+      modeHint.textContent = mode === 'model'
+        ? '由模型自行判断本轮是否值得记；每 30 分钟最多提示一次。'
+        : mode === 'interval'
+          ? '每到设定的整点边界提示一次，让它在空档回顾要点。'
+          : '上下文接近压缩时提示一次，把还没写下的结论抢救下来。';
+    }
+    syncModeFields();
+    modeSelect.addEventListener('change', syncModeFields);
+
+    const saveCapture = button('保存自动记住设置', { style: 'primary', symbol: 'check', disabled: !captureAvailable });
+    const autoForm = node('form', {},
+      node('div', { className: 'strata-toggle-row' },
+        node('div', {}, node('strong', { text: '自动记住' }), node('p', { text: '无需你开口，按选定方式提醒它记录。' })),
+        node('label', { className: 'strata-toggle' }, autoToggle, node('span', { 'aria-hidden': 'true' }))),
+      node('div', { className: 'strata-form' },
+        field('触发方式', modeSelect),
+        hoursField,
+        thresholdField,
+        field('每会话最多写入', maxSession, '防止刷写；达到上限后本次会话不再提示。'),
+        modeHint,
+        note('自动模式只提示“可以记”，不会代替它静默写入；关掉开关即恢复为只听你的指令。'),
+        node('div', { className: 'strata-form-actions' }, saveCapture)));
+    autoForm.addEventListener('submit', event => event.preventDefault());
+    saveCapture.addEventListener('click', () => {
+      run(saveCapture, '正在保存', async () => {
+        await request('settings.update', { patch: { capture: {
+          enabled: autoToggle.checked,
+          mode: modeSelect.value,
+          intervalHours: Number(hours.value),
+          contextThresholdPercent: Number(threshold.value),
+          maxPerSession: Number(maxSession.value),
+        } } });
+        toast('自动记住设置已保存。');
+        await refresh();
+      });
+    });
+    main.append(panel('自动记住', captureAvailable ? '三种方式只选一种，随时可以关掉。' : '当前版本尚未提供自动记住。', autoForm,
+      captureAvailable ? (autoToggle.checked ? badge('已开启', 'success') : badge('已关闭', 'muted')) : badge('不可用', 'muted')));
+
+    // —— 主动记忆（保留原功能）——
     const enabled = input({ type: 'checkbox', checked: available && Boolean(settings.enabled), disabled: !available, role: 'switch', 'aria-label': '启用主动记忆' });
     const delivery = node('select', { className: 'strata-input', disabled: !available }, node('option', { value: 'inbox', text: '只放灵感盒 · 主动查看时再出现' }), node('option', { value: 'occasional', text: '偶尔提醒 · 在合适时机轻量出现' }));
     delivery.value = settings.delivery || 'inbox';
     const maxDay = input({ type: 'number', min: '0', max: '20', step: '1', value: settings.maxPerDay ?? 3, required: true, disabled: !available });
     const cooldown = input({ type: 'number', min: '1', max: '1440', step: '1', value: settings.cooldownMinutes ?? 30, required: true, disabled: !available });
     const save = button(available ? '保存灵感设置' : '自动关联尚未接入', { style: 'primary', symbol: available ? 'check' : 'clock', disabled: !available });
-    main.append(header('A LITTLE SERENDIPITY', '让旧经验，偶尔照亮新问题。', '为有依据的联想留一点空间，也为专注留足边界。'));
     main.append(panel('手动灵感盒', '先把一闪而过的念头留下。它会作为“想法”保存，等待你的后续验证。', node('div', { className: 'strata-button-group' }, button('记下一个想法', { style: 'primary', symbol: 'plus', onclick: () => showNewRecord('idea') }), button('查看已保存的想法', { symbol: 'arrow', onclick: () => { state.query = ''; state.kind = 'idea'; navigate('memory'); } })), badge('已可使用', 'success')));
-    if (!available) main.append(note('手动记录与查看想法已可用。会话采集、自动关联和偶尔提醒稍后接入，下面的自动设置暂不可启用。'));
+    if (!available) main.append(note('手动灵感盒已可用。主动关联与偶尔提醒稍后接入，下面的设置暂不可启用。'));
     const controls = node('div', { className: 'strata-form' }, field('出现方式', delivery), node('div', { className: 'strata-form-grid' }, field('每天最多提醒', maxDay, '同一记忆库的所有会话共享额度。'), field('最短间隔（分钟）', cooldown, '没有合适线索时，保持安静。')), note('“值得试”会保存为想法。只有实际验证后的结果，才会成为有依据的经验。'), node('div', { className: 'strata-form-actions' }, save));
     const form = node('form', {}, node('div', { className: 'strata-toggle-row' }, node('div', {}, node('strong', { text: '主动记忆' }), node('p', { text: '从允许范围内的旧记录中寻找与当前任务有关的线索。' })), node('label', { className: 'strata-toggle' }, enabled, node('span', { 'aria-hidden': 'true' }))), controls);
     form.addEventListener('submit', event => event.preventDefault());
@@ -529,7 +606,7 @@ export async function mountStrataSettings(container, options = {}) {
       run(save, '正在保存', async () => { await request('settings.update', { patch: { proactive: { ...settings, enabled: enabled.checked, delivery: delivery.value, maxPerDay: Number(maxDay.value), cooldownMinutes: Number(cooldown.value) } } }); toast('灵感偏好已保存。'); await refresh(); });
     });
     main.append(panel('主动记忆偏好', available ? '提示有来源、有频率限制，也可以随时关闭。' : '预留自动能力设置，接入后开放。', form, !available && badge('尚未接入', 'muted')));
-    main.append(node('div', { className: 'strata-principles' }, principle('shield', '遵循使用范围', '仅在允许范围内读取记忆与保存想法。'), principle('clock', '轻量，不催促', available ? '多会话共享额度，同一个想法不会反复出现。' : '自动提醒暂未开放，当前不会主动打断会话。'), principle('spark', '灵感先是想法', '收藏不等于事实，推断需要新的证据。')));
+    main.append(node('div', { className: 'strata-principles' }, principle('shield', '遵循使用范围', '仅在允许范围内读取记忆与保存想法。'), principle('check', '写入不静默', '自动模式只是提示可以记，写入仍走同一条记录路径。'), principle('spark', '灵感先是想法', '收藏不等于事实，推断需要新的证据。')));
     main.append(pageFoot('主动记忆设置不会自动联网、创建定时任务或修改你的项目。'));
   }
 
