@@ -57,7 +57,6 @@
   "bugs": {
     "url": "https://github.com/arrogancewen/dsh-strata/issues"
   },
-  "private": true,
   "devDependencies": {
     "esbuild": "0.28.2"
   }
