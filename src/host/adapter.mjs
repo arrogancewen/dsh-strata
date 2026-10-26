@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { captureHint, recordCapture } from './capture.mjs';
+import { captureHint, recordCapture, hydrateWatermark, currentWatermark } from './capture.mjs';
 
 export const RPC_CHANNEL = '/strata';
 export const CONTEXT_NAME = 'dsh-strata:memory-index';
@@ -175,17 +175,37 @@ export function createManagementHandler(app) {
 /**
  * 自动记住：按设置判定本轮是否给模型一条「可以记」的提示。
  * 只提示、不写入；任何失败都静默跳过，绝不打断会话。
+ *
+ * 水位是「跨重启存活」的关键：每次判定前先从 store 水合，
+ * 判定后再写回，否则 DSH 一重启就把整点水位清零，interval 模式永远算不对。
  */
-function withCaptureHint(current, ctx, app, context, capture) {
+async function withCaptureHint(current, ctx, app, context, capture, authority) {
   try {
     if (!capture?.enabled) return current;
+    const sessionId = context.agent.id;
+
+    // 1) 水合持久水位（失败不阻塞，退化为内存态）
+    try {
+      const watermark = await app.dispatch('capture.watermark.get', { sessionId }, authority);
+      hydrateWatermark({ sessionId, watermark });
+    } catch { /* 水位读不到就按内存态判，不打扰会话 */ }
+
     const hint = captureHint({
       capture,
-      sessionId: context.agent.id,
+      sessionId,
       contextPercent: context.__strataContextPercent,
     });
     if (!hint) return current;
-    recordCapture({ capture, sessionId: context.agent.id });
+
+    recordCapture({ capture, sessionId });
+
+    // 2) 写回水位（失败也不影响本轮提示，最多下轮重复提示一次）
+    try {
+      await app.dispatch('capture.watermark.set', {
+        sessionId, watermark: currentWatermark(sessionId),
+      }, authority);
+    } catch { /* 忽略 */ }
+
     return {
       ...current,
       contexts: [
@@ -206,10 +226,13 @@ export function createPromptMiddleware(ctx, app) {
     if (!context?.agent || context.scope !== context.agent || context.signal?.aborted) return current;
     try {
       const authority = agentAuthority(ctx, context.agent);
-      // 自动记住的开关与模式来自当前设置；读取失败按「未开启」处理。
+      // 自动记住的开关与模式来自当前设置。
+      // 注意：不能用 settings.get —— 那需要管理权限，会话上下文会被拒；
+      // settings.capture 是专门给会话侧的非敏感只读视图。
       let capture = null;
       try {
-        capture = (await app.dispatch('settings.get', {}, authority))?.capture ?? null;
+        const view = await app.dispatch('settings.capture', {}, authority);
+        capture = view ? { ...view } : null;
       } catch { capture = null; }
 
       const index = await app.dispatch('context.l0', {}, authority);
@@ -218,7 +241,7 @@ export function createPromptMiddleware(ctx, app) {
 
       if (!hasIndex) {
         // 即使没有历史记忆，自动记住的提示仍应下发。
-        return withCaptureHint(current, ctx, app, context, capture);
+        return await withCaptureHint(current, ctx, app, context, capture, authority);
       }
 
       // Recheck the live identity after asynchronous reads; never reuse another session's cache.
@@ -228,7 +251,7 @@ export function createPromptMiddleware(ctx, app) {
         ...(current.contexts ?? []).filter(item => item.name !== CONTEXT_NAME),
         { name: CONTEXT_NAME, text, interpolate: false },
       ];
-      return withCaptureHint(current, ctx, app, context, capture);
+      return await withCaptureHint(current, ctx, app, context, capture, authority);
     } catch {
       // A denied, unknown or disposed scope contributes no memory. Tool calls surface errors.
       return current;

@@ -34,9 +34,32 @@ export async function createApplication(root, options = {}) {
         owner(auth);
         const status = await store.status();
         const settings = await store.getSettings();
-        return { ...status, scope: settings.scope, settings, capabilities: CAPABILITIES, version: '0.1.5' };
+        return { ...status, scope: settings.scope, settings, capabilities: CAPABILITIES, version: '0.1.6' };
       }
       case 'settings.get': owner(auth); return await store.getSettings();
+      // 会话级只读视图：提示词中间件需要知道「是否允许自动提示」，但它没有管理权限。
+      // 只回非敏感字段，绝不下发 scope 等管理信息，避免把管理面开到会话工具。
+      case 'settings.capture': {
+        const settings = await store.getSettings();
+        return {
+          enabled: settings.capture?.enabled === true,
+          mode: settings.capture?.mode ?? 'model',
+          intervalHours: settings.capture?.intervalHours,
+          contextThresholdPercent: settings.capture?.contextThresholdPercent,
+          maxPerSession: settings.capture?.maxPerSession,
+          manualMemoryEnabled: settings.manualMemoryEnabled !== false,
+        };
+      }
+      // 自动记住的跨重启水位：会话侧可读写自己那一份，不暴露其他会话。
+      case 'capture.watermark.get': {
+        if (auth.admin) return await store.getCaptureWatermark(params.sessionId);
+        return await store.getCaptureWatermark(auth.sessionId);
+      }
+      case 'capture.watermark.set': {
+        const target = auth.admin ? params.sessionId : auth.sessionId;
+        if (typeof target !== 'string' || !target) throw fail('invalid_arguments', '缺少会话标识。', 400);
+        return await store.setCaptureWatermark(target, validParams(params.watermark));
+      }
       case 'settings.update': {
         owner(auth);
         const patch = validParams(params.patch);

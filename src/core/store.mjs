@@ -246,6 +246,21 @@ export class StrataStore {
     isoTime(state.committedAt);
     validateSettings(state.settings);
     for (const key of ['records', 'evidence', 'imports', 'operations']) assertPlainMap(state[key], key);
+    // 自动记住的水位：可缺省（旧库），存在时必须是扁平 map。
+    if (state.captureWatermarks !== undefined) {
+      assertPlainMap(state.captureWatermarks, 'captureWatermarks');
+      for (const [sessionId, mark] of Object.entries(state.captureWatermarks)) {
+        assert(typeof sessionId === 'string' && sessionId.length <= 200, 'invalid_state', '自动记住水位会话 ID 无效。');
+        assertPlainMap(mark, 'captureWatermark');
+        // null 表示「尚未发生过」，必须允许，否则首次写入会被自己的校验拒掉。
+        for (const field of ['lastIntervalSlot', 'lastContextPromptAt', 'lastModelPromptAt']) {
+          assert(mark[field] === undefined || mark[field] === null || Number.isFinite(mark[field]),
+            'invalid_state', `自动记住水位 ${field} 无效。`);
+        }
+        assert(mark.capturedCount === undefined || Number.isSafeInteger(mark.capturedCount),
+          'invalid_state', '自动记住计数无效。');
+      }
+    }
     assert(Array.isArray(state.timeline) && state.timeline.length > 0, 'invalid_state', '缺少提交时间线。');
     assert(Object.keys(state.records).length <= 20000 && Object.keys(state.evidence).length <= 50000, 'store_too_large', '记录数超过当前版本上限。');
     for (const [id, history] of Object.entries(state.records)) {
@@ -354,6 +369,31 @@ export class StrataStore {
   }
 
   async getSettings() { return clone((await this._readState()).settings); }
+
+  /**
+   * 读某会话的自动记住水位（跨进程存活）。
+   * 水位与设置不同：它随每次触发变化，属于易变状态，因此单独存，不污染 settings。
+   */
+  async getCaptureWatermark(sessionId) {
+    const state = await this._readState();
+    return clone(state.captureWatermarks?.[sessionId] ?? null);
+  }
+
+  /** 记录某会话的自动记住水位。写入极轻，但仍走事务以保证原子与可重放。 */
+  async setCaptureWatermark(sessionId, mark) {
+    assert(typeof sessionId === 'string' && sessionId.length > 0 && sessionId.length <= 200, 'invalid_arguments', '会话 ID 无效。');
+    assertPlainMap(mark, 'captureWatermark');
+    return this.transaction(async draft => {
+      const table = draft.captureWatermarks ?? (draft.captureWatermarks = {});
+      table[sessionId] = { ...(table[sessionId] ?? {}), ...mark };
+      // 只保留最近 200 个会话的水位，避免无限增长。
+      const keys = Object.keys(table);
+      if (keys.length > 200) {
+        for (const key of keys.slice(0, keys.length - 200)) delete table[key];
+      }
+      return table[sessionId];
+    }, { admin: true });
+  }
 
   async updateSettings(patch, { expectedCommitSeq } = {}) {
     assertPlainMap(patch, 'settings');

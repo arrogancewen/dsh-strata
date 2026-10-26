@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { createApplication } from '../src/application.mjs';
 import {
   agentAuthority, createManagementHandler, createPromptMiddleware,
   createToolDefinitions, registerHost, RPC_CHANNEL, CONTEXT_NAME,
@@ -106,7 +109,7 @@ test('L0 is literal user context and never enters system sections or unrelated s
   const f = fixture();
   f.app.dispatch = async (method, params, auth) => {
     f.calls.push({ method, params, auth });
-    if (method === 'settings.get') return { capture: { enabled: false } };
+    if (method === 'settings.capture') return { enabled: false, mode: 'model' };
     return { text: 'A title with {{secret}} and </memory>', scopeAllowed: true };
   };
   const middleware = createPromptMiddleware(f.ctx, f.app);
@@ -121,12 +124,83 @@ test('L0 is literal user context and never enters system sections or unrelated s
   const l0 = f.calls.find(call => call.method === 'context.l0');
   assert.ok(l0, 'context.l0 必须被调用');
   assert.equal(l0.auth.admin, false);
-  assert.equal(f.calls.find(call => call.method === 'settings.get').auth.admin, false);
+  const captureCall = f.calls.find(call => call.method === 'settings.capture');
+  assert.ok(captureCall, '会话侧必须用 settings.capture 读取自动记住开关');
+  assert.equal(captureCall.auth.admin, false);
   const unrelated = assembly();
   await middleware(unrelated, { agent: f.agent, scope: {} }, async () => unrelated);
   assert.equal(unrelated.contexts.length, 0);
-  const afterUnrelated = f.calls.length;
-  assert.equal(afterUnrelated, 2, '无关 scope 不应产生新的 dispatch');
+  assert.equal(f.calls.length, 2, '无关 scope 不应产生新的 dispatch');
+});
+
+// 回归：会话侧曾误用 settings.get（需要管理权限），异常被吞导致自动记住永不生效。
+test('session-side settings read is reachable without admin rights', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'strata-session-view-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const app = await createApplication(root, { initialScope: { mode: 'dsh' } });
+  const session = { admin: false, sessionId: 'session-view', cwd: root };
+
+  // settings.get 必须对会话侧关闭（管理面）。
+  await assert.rejects(app.dispatch('settings.get', {}, session), { code: 'forbidden' });
+
+  // settings.capture 必须对会话侧开放，且只含非敏感字段。
+  await app.dispatch('settings.update', { patch: { capture: { enabled: true, mode: 'interval', intervalHours: 6 } } }, { admin: true });
+  const view = await app.dispatch('settings.capture', {}, session);
+  assert.equal(view.enabled, true);
+  assert.equal(view.mode, 'interval');
+  assert.equal(view.intervalHours, 6);
+  assert.equal(view.manualMemoryEnabled, true);
+  assert.equal(Object.hasOwn(view, 'scope'), false, '不得下发使用范围');
+  assert.equal(Object.hasOwn(view, 'proactive'), false, '不得下发无关设置');
+});
+
+// 端到端：中间件必须真的能拿到开关并下发提示，且跨重启仍遵守整点水位。
+test('prompt middleware injects capture hint across restarts', async t => {
+  const { mkdtemp: mk, rm: rmDir } = await import('node:fs/promises');
+  const { tmpdir: tdir } = await import('node:os');
+  const root = await mk(path.join(tdir(), 'strata-hint-'));
+  t.after(() => rmDir(root, { recursive: true, force: true }));
+  const cwd = root;
+
+  const makeAgent = id => ({
+    id, status: 'running',
+    session: { id, header: { id, cwd } },
+  });
+  const makeCtx = agent => ({
+    agents: { get: id => (id === agent.id ? agent : undefined), currentInitiator: () => agent },
+  });
+
+  // —— 第一次启动：开启 interval 模式并触发一次 ——
+  {
+    const app = await createApplication(root, { initialScope: { mode: 'folder', path: cwd, includeSubfolders: true } });
+    await app.dispatch('settings.update', { patch: { capture: { enabled: true, mode: 'interval', intervalHours: 4 } } }, { admin: true });
+    const agent = makeAgent('session-hint');
+    const middleware = createPromptMiddleware(makeCtx(agent), app);
+    const run = async () => {
+      const a = { sections: [], contexts: [] };
+      return middleware(a, { agent, scope: agent }, async () => a);
+    };
+    const first = await run();
+    const hint = (first.contexts ?? []).find(c => c.name.includes('capture'));
+    assert.ok(hint, '开启自动记住后，中间件必须下发提示');
+    assert.equal(hint.interpolate, false);
+  }
+
+  // —— 模拟重启：内存态由 resetCaptureState 清空，但水位应仍在 store ——
+  {
+    const { resetCaptureState } = await import('../src/host/capture.mjs');
+    resetCaptureState();
+    const app = await createApplication(root, { initialScope: { mode: 'folder', path: cwd, includeSubfolders: true } });
+    const agent = makeAgent('session-hint');
+    const middleware = createPromptMiddleware(makeCtx(agent), app);
+    const run = async () => {
+      const a = { sections: [], contexts: [] };
+      return middleware(a, { agent, scope: agent }, async () => a);
+    };
+    const afterRestart = await run();
+    const hint = (afterRestart.contexts ?? []).find(c => c.name.includes('capture'));
+    assert.equal(hint, undefined, '重启后同一整点窗口内不得重复提示');
+  }
 });
 
 test('L0 does not reuse cached authorization and suppresses revoked or disposed sessions', async () => {

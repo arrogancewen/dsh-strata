@@ -10,7 +10,7 @@
  * - 触发只是「提示模型可以记」，绝不代替模型写入，也不静默写。
  */
 
-/** 每会话运行时状态，不落盘（重启即重置，避免陈旧节流）。 */
+/** 每会话运行时状态。跨重启的持久水位由 hydrateWatermark 注入。 */
 const sessions = new Map();
 
 function stateFor(sessionId) {
@@ -26,6 +26,31 @@ function stateFor(sessionId) {
     sessions.set(sessionId, state);
   }
   return state;
+}
+
+/**
+ * 用持久化水位覆盖内存态。
+ * 没有这一步时，DSH 每次重启都把「上次触发时间」清零，
+ * 于是 interval 模式重启后永远认为「整点刚到」或永远不触发。
+ */
+export function hydrateWatermark({ sessionId, watermark }) {
+  if (!watermark || typeof watermark !== 'object') return;
+  const state = stateFor(sessionId);
+  if (Number.isFinite(watermark.lastIntervalSlot)) state.lastIntervalSlot = watermark.lastIntervalSlot;
+  if (Number.isFinite(watermark.lastContextPromptAt)) state.lastContextPromptAt = watermark.lastContextPromptAt;
+  if (Number.isFinite(watermark.lastModelPromptAt)) state.lastModelPromptAt = watermark.lastModelPromptAt;
+  if (Number.isFinite(watermark.capturedCount)) state.capturedCount = watermark.capturedCount;
+}
+
+/** 导出当前水位，供调用方持久化。 */
+export function currentWatermark(sessionId) {
+  const state = stateFor(sessionId);
+  return {
+    lastIntervalSlot: Number.isFinite(state.lastIntervalSlot) ? state.lastIntervalSlot : null,
+    lastContextPromptAt: state.lastContextPromptAt || null,
+    lastModelPromptAt: state.lastModelPromptAt || null,
+    capturedCount: state.capturedCount,
+  };
 }
 
 /** 把时间向下取整到 intervalHours 的整数倍（即「整点」边界）。 */
