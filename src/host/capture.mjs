@@ -54,10 +54,25 @@ export function currentWatermark(sessionId) {
 }
 
 /** 把时间向下取整到 intervalHours 的整数倍（即「整点」边界）。 */
+/**
+ * 计算「服务器本地时间」的整点窗口起点。
+ *
+ * 规则（用户指定）：
+ * - 按服务器本地时间的 00:00 起算，不跨天。
+ * - 例如设置 3 → 每天 3、6、9、12、15、18、21、24 点各一个窗口。
+ * - 设置 5 → 每天 5、10、15、20 点。
+ *
+ * 实现：取本地日期的 0 点，再按 hours 向下取整到当天的第几个窗口。
+ * 绝不能直接对 UTC 毫秒取整——那会按 UTC 0 点对齐，在东八区会偏移 8 小时。
+ */
 export function currentIntervalSlot(now, intervalHours) {
   const hours = Number.isSafeInteger(intervalHours) && intervalHours > 0 ? intervalHours : 4;
+  // 用服务器本地日历日 0 点作为锚点，保证「不跨天」。
+  const local = new Date(now);
+  const anchor = new Date(local.getFullYear(), local.getMonth(), local.getDate(), 0, 0, 0, 0).getTime();
   const ms = hours * 3600_000;
-  return Math.floor(now / ms) * ms;
+  const hoursSinceMidnight = Math.floor((now - anchor) / ms);
+  return anchor + hoursSinceMidnight * ms;
 }
 
 function sessionBudget(capture) {
@@ -145,15 +160,27 @@ export function resetCaptureState(sessionId) {
 }
 
 /**
+ * 列出一天内的触发时刻，用于提示文案与设置界面显示。
+ * 3 → [3,6,9,12,15,18,21,24]；5 → [5,10,15,20]。24 点记为 24 而非次日 0 点。
+ */
+export function intervalTimesOfDay(intervalHours) {
+  const hours = Number.isSafeInteger(intervalHours) && intervalHours > 0 ? intervalHours : 4;
+  const times = [];
+  for (let hour = hours; hour <= 24; hour += hours) times.push(hour);
+  return times;
+}
+
+/**
  * 生成给模型看的自动记住提示。返回 null 表示不提示。
  * 提示刻意简短，并明确边界：是否记录由模型判断，不是强制写入。
  */
 export function captureHint({ capture, sessionId, now = Date.now(), contextPercent } = {}) {
   const verdict = shouldCapture({ capture, sessionId, now, contextPercent });
   if (!verdict.trigger) return null;
+  const times = intervalTimesOfDay(capture.intervalHours).join('、');
   const texts = {
     model: '自动记忆已开启（模型判断）：若本轮出现了值得长期保留的决策、结论或用户偏好，可调用 strata_remember 记录；无价值则忽略本提示。',
-    interval: `自动记忆已开启（每 ${capture.intervalHours} 小时）：请回顾截至目前值得保留的要点，必要时调用 strata_remember 记录；无价值则忽略。`,
+    interval: `自动记忆已开启（每天 ${times} 点）：请回顾截至目前值得保留的要点，必要时调用 strata_remember 记录；无价值则忽略。`,
     context: '自动记忆已开启（上下文临近压缩）：请把本轮仍需长期保留的结论用 strata_remember 记录下来，以免压缩后丢失；无价值则忽略。',
   };
   return { mode: capture.mode, text: texts[capture.mode] ?? texts.model, reason: verdict.reason };

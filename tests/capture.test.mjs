@@ -1,10 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  shouldCapture, recordCapture, resetCaptureState, captureHint, currentIntervalSlot,
+  shouldCapture, recordCapture, resetCaptureState, captureHint, currentIntervalSlot, intervalTimesOfDay,
 } from '../src/host/capture.mjs';
 
 const HOUR = 3600_000;
+
+/** 构造「服务器本地时间」的时间戳，断言与机器时区无关。 */
+function local(year, month, day, hour, minute = 0) {
+  return new Date(year, month - 1, day, hour, minute, 0, 0).getTime();
+}
+
+test('interval slots align to local midnight and never span days', () => {
+  const y = 2026, m = 10, d = 26;
+  // 设置 3 小时：0 点起算 → 3、6、9、12、15、18、21、24
+  assert.equal(currentIntervalSlot(local(y, m, d, 0, 1), 3), local(y, m, d, 0));
+  assert.equal(currentIntervalSlot(local(y, m, d, 2, 59), 3), local(y, m, d, 0));
+  assert.equal(currentIntervalSlot(local(y, m, d, 3, 0), 3), local(y, m, d, 3));
+  assert.equal(currentIntervalSlot(local(y, m, d, 23, 59), 3), local(y, m, d, 21));
+  // 第二天 0 点必须是新锚点，不延续前一天
+  assert.equal(currentIntervalSlot(local(y, m, d + 1, 0, 30), 3), local(y, m, d + 1, 0));
+
+  // 设置 5 小时：5、10、15、20
+  assert.equal(currentIntervalSlot(local(y, m, d, 4, 59), 5), local(y, m, d, 0));
+  assert.equal(currentIntervalSlot(local(y, m, d, 5, 0), 5), local(y, m, d, 5));
+  assert.equal(currentIntervalSlot(local(y, m, d, 21, 0), 5), local(y, m, d, 20));
+});
+
+test('interval times of day render the promised hours', () => {
+  assert.deepEqual(intervalTimesOfDay(3), [3, 6, 9, 12, 15, 18, 21, 24]);
+  assert.deepEqual(intervalTimesOfDay(5), [5, 10, 15, 20]);
+  assert.deepEqual(intervalTimesOfDay(24), [24]);
+  assert.deepEqual(intervalTimesOfDay(7), [7, 14, 21]);
+});
 
 test('auto capture stays off unless explicitly enabled', () => {
   resetCaptureState();
@@ -92,7 +120,7 @@ test('captureHint returns localized guidance and null when not triggered', () =>
   assert.match(model.text, /strata_remember/);
 
   const interval = captureHint({ capture: { enabled: true, mode: 'interval', intervalHours: 9, maxPerSession: 9 }, sessionId: 'h2', now: t0 });
-  assert.match(interval.text, /9 小时/);
+  assert.match(interval.text, /每天 9、18 点/);
 
   const context = captureHint({ capture: { enabled: true, mode: 'context', contextThresholdPercent: 20, maxPerSession: 9 }, sessionId: 'h3', now: t0, contextPercent: 3 });
   assert.match(context.text, /压缩/);

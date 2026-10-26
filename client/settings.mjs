@@ -543,21 +543,32 @@ export async function mountStrataSettings(container, options = {}) {
     const hours = input({ type: 'number', min: '1', max: '168', step: '1', value: capture.intervalHours ?? 4, disabled: !captureAvailable });
     const threshold = input({ type: 'number', min: '1', max: '90', step: '1', value: capture.contextThresholdPercent ?? 20, disabled: !captureAvailable });
     const maxSession = input({ type: 'number', min: '0', max: '200', step: '1', value: capture.maxPerSession ?? 20, disabled: !captureAvailable });
-    const hoursField = field('间隔小时数', hours, '按整点对齐：每 N 小时的边界触发一次。');
+    // 把「间隔 N 小时」翻译成用户真正关心的「每天几点」，避免 UTC 对齐那类误解。
+    function timesOfDay(h) {
+      const n = Number.isSafeInteger(h) && h > 0 ? h : 4;
+      const list = [];
+      for (let at = n; at <= 24; at += n) list.push(at);
+      return list.join('、');
+    }
+    const hoursHint = node('span', { className: 'strata-hint', text: '' });
+    const hoursField = field('间隔小时数', hours, '');
+    hoursField.appendChild(hoursHint);
     const thresholdField = field('剩余上下文阈值（%）', threshold, '剩余低于该比例时提示一次，避免压缩后丢失。');
     const modeHint = node('p', { className: 'strata-hint', text: '' });
     function syncModeFields() {
       const mode = modeSelect.value;
       hoursField.hidden = mode !== 'interval';
       thresholdField.hidden = mode !== 'context';
+      hoursHint.textContent = `按服务器本地时间、从 0 点起算，不跨天。当前每天在 ${timesOfDay(Number(hours.value))} 点提示一次。`;
       modeHint.textContent = mode === 'model'
         ? '由模型自行判断本轮是否值得记；每 30 分钟最多提示一次。'
         : mode === 'interval'
-          ? '每到设定的整点边界提示一次，让它在空档回顾要点。'
+          ? '到点后提醒模型回顾一次，是否记录仍由它判断。'
           : '上下文接近压缩时提示一次，把还没写下的结论抢救下来。';
     }
     syncModeFields();
     modeSelect.addEventListener('change', syncModeFields);
+    hours.addEventListener('input', syncModeFields);
 
     const saveCapture = button('保存自动记住设置', { style: 'primary', symbol: 'check', disabled: !captureAvailable });
     const autoForm = node('form', {},
