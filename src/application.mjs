@@ -34,7 +34,7 @@ export async function createApplication(root, options = {}) {
         owner(auth);
         const status = await store.status();
         const settings = await store.getSettings();
-        return { ...status, scope: settings.scope, settings, capabilities: CAPABILITIES, version: '0.1.7' };
+        return { ...status, scope: settings.scope, settings, capabilities: CAPABILITIES, version: '0.1.8' };
       }
       case 'settings.get': owner(auth); return await store.getSettings();
       // 会话级只读视图：提示词中间件需要知道「是否允许自动提示」，但它没有管理权限。

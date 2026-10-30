@@ -579,7 +579,7 @@ export async function mountStrataSettings(container, options = {}) {
         field('触发方式', modeSelect),
         hoursField,
         thresholdField,
-        field('每会话最多写入', maxSession, '防止刷写；达到上限后本次会话不再提示。'),
+        field('每天最多提示', maxSession, '防止刷写；按服务器本地时间每天重置，不会用尽后永久停用。'),
         modeHint,
         note('自动模式只提示“可以记”，不会代替它静默写入；关掉开关即恢复为只听你的指令。'),
         node('div', { className: 'strata-form-actions' }, saveCapture)));

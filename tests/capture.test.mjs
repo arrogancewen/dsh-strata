@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   shouldCapture, recordCapture, resetCaptureState, captureHint, currentIntervalSlot, intervalTimesOfDay,
+  hydrateWatermark, budgetDayKey,
 } from '../src/host/capture.mjs';
 
 const HOUR = 3600_000;
@@ -86,10 +87,11 @@ test('per-session budget stops runaway capture in every mode', () => {
   for (const mode of ['model', 'interval', 'context']) {
     resetCaptureState();
     const capture = { enabled: true, mode, intervalHours: 1, contextThresholdPercent: 50, maxPerSession: 2 };
-    let now = 1_700_000_000_000;
+    // 固定在同一天内推进，避免跨天重置干扰预算断言（跨天另有专门用例）。
+    let now = local(2026, 10, 26, 0, 5);
     let fired = 0;
     for (let i = 0; i < 10; i++) {
-      now += 2 * HOUR; // 每轮都越过新窗口
+      now += 2 * HOUR; // 每轮都越过新窗口，但仍在当天内（0:05 起 10 轮 × 2h = 20h）
       const v = shouldCapture({ capture, sessionId: 'b-' + mode, now, contextPercent: 1 });
       if (v.trigger) { fired += 1; recordCapture({ capture, sessionId: 'b-' + mode, now }); }
     }
@@ -97,6 +99,45 @@ test('per-session budget stops runaway capture in every mode', () => {
     const stop = shouldCapture({ capture, sessionId: 'b-' + mode, now, contextPercent: 1 });
     assert.equal(stop.reason, 'session_budget_exhausted');
   }
+});
+
+test('per-session budget resets every local day instead of lasting forever', () => {
+  resetCaptureState();
+  const capture = { enabled: true, mode: 'model', maxPerSession: 2 };
+  const day1 = local(2026, 10, 26, 9, 0);
+  const sessionId = 'budget-day';
+
+  // 第一天用满预算
+  for (let i = 0; i < 2; i++) {
+    recordCapture({ capture, sessionId, now: day1 + i * 60 * 60_000 });
+  }
+  assert.equal(shouldCapture({ capture, sessionId, now: day1 + 3 * HOUR }).reason, 'session_budget_exhausted',
+    '当天内达到上限后必须停止提示');
+
+  // 第二天 0 点起预算自动恢复——这是「长会话永久停摆」的根因修复
+  const day2 = local(2026, 10, 27, 0, 1);
+  assert.equal(shouldCapture({ capture, sessionId, now: day2 }).trigger, true,
+    '跨天后预算必须重置，长会话不能永久停摆');
+
+  // 重置只发生一次，且不会把水位里的其他字段冲掉
+  recordCapture({ capture, sessionId, now: day2 });
+  assert.equal(shouldCapture({ capture, sessionId, now: day2 + 3 * HOUR }).trigger, true,
+    '第二天应重新拥有完整预算');
+  recordCapture({ capture, sessionId, now: day2 + 3 * HOUR });
+  assert.equal(shouldCapture({ capture, sessionId, now: day2 + 6 * HOUR }).trigger, false,
+    '第二天的预算同样会被用尽');
+});
+
+test('a stale watermark with no budget day is revived rather than left exhausted', () => {
+  resetCaptureState();
+  const capture = { enabled: true, mode: 'model', maxPerSession: 20 };
+  const sessionId = 'legacy-exhausted';
+  const now = local(2026, 10, 30, 10, 0);
+  // 模拟旧版本库：只有 capturedCount=20，没有 budgetDay
+  hydrateWatermark({ sessionId, watermark: { capturedCount: 20, lastModelPromptAt: 0 }, now });
+  assert.equal(shouldCapture({ capture, sessionId, now }).trigger, true,
+    '旧库的 20/20 水合后必须按当天重新计数，否则升级后仍然永久停摆');
+  assert.equal(budgetDayKey(now), '2026-10-30');
 });
 
 test('sessions are isolated from each other', () => {

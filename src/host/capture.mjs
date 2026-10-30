@@ -18,6 +18,7 @@ function stateFor(sessionId) {
   if (!state) {
     state = {
       capturedCount: 0,
+      budgetDay: null,
       lastModelPromptAt: 0,
       lastIntervalSlot: -Infinity,
       lastContextPromptAt: 0,
@@ -29,17 +30,52 @@ function stateFor(sessionId) {
 }
 
 /**
+ * 预算所属的本地日历日，形如 `2026-10-30`。
+ *
+ * 预算是「每会话每天最多提示 N 次」，不是「这辈子 N 次」。
+ * 早期版本没有这个日期键，计数只加不减，长会话撞到上限后永久停摆——
+ * 那正是自动记住在长会话上彻底失效的根因。
+ */
+export function budgetDayKey(now) {
+  const d = new Date(now);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * 跨天时把当天的提示计数清零，并推进日期键。
+ * 幂等：同一天重复调用不改变任何状态。
+ */
+function rollBudgetDay(state, now) {
+  const today = budgetDayKey(now);
+  if (state.budgetDay !== today) {
+    state.budgetDay = today;
+    state.capturedCount = 0;
+  }
+  return state;
+}
+
+/**
  * 用持久化水位覆盖内存态。
  * 没有这一步时，DSH 每次重启都把「上次触发时间」清零，
  * 于是 interval 模式重启后永远认为「整点刚到」或永远不触发。
  */
-export function hydrateWatermark({ sessionId, watermark }) {
+export function hydrateWatermark({ sessionId, watermark, now = Date.now() }) {
   if (!watermark || typeof watermark !== 'object') return;
   const state = stateFor(sessionId);
   if (Number.isFinite(watermark.lastIntervalSlot)) state.lastIntervalSlot = watermark.lastIntervalSlot;
   if (Number.isFinite(watermark.lastContextPromptAt)) state.lastContextPromptAt = watermark.lastContextPromptAt;
   if (Number.isFinite(watermark.lastModelPromptAt)) state.lastModelPromptAt = watermark.lastModelPromptAt;
-  if (Number.isFinite(watermark.capturedCount)) state.capturedCount = watermark.capturedCount;
+  // 旧版本的 capturedCount 是「这辈子累计」，不是任何一天的计数，不能被当成今天的用量继承下来。
+  // 缺 budgetDay 即视为旧库：认领当天并把计数归零，否则升级后照样永久停摆。
+  if (typeof watermark.budgetDay === 'string' && watermark.budgetDay) {
+    if (Number.isFinite(watermark.capturedCount)) state.capturedCount = watermark.capturedCount;
+    state.budgetDay = watermark.budgetDay;
+  } else {
+    state.capturedCount = 0;
+    state.budgetDay = budgetDayKey(now);
+  }
 }
 
 /** 导出当前水位，供调用方持久化。 */
@@ -50,6 +86,7 @@ export function currentWatermark(sessionId) {
     lastContextPromptAt: state.lastContextPromptAt || null,
     lastModelPromptAt: state.lastModelPromptAt || null,
     capturedCount: state.capturedCount,
+    budgetDay: state.budgetDay || null,
   };
 }
 
@@ -93,7 +130,7 @@ export function shouldCapture({ capture, sessionId, now = Date.now(), contextPer
   if (!capture || capture.enabled !== true) {
     return { trigger: false, mode: null, reason: 'auto_capture_disabled' };
   }
-  const state = stateFor(sessionId);
+  const state = rollBudgetDay(stateFor(sessionId), now);
 
   if (state.capturedCount >= sessionBudget(capture)) {
     return { trigger: false, mode: capture.mode, reason: 'session_budget_exhausted' };
@@ -143,7 +180,7 @@ export function shouldCapture({ capture, sessionId, now = Date.now(), contextPer
  * 否则一次未生效的判定会白白耗掉一个窗口。
  */
 export function recordCapture({ capture, sessionId, now = Date.now() }) {
-  const state = stateFor(sessionId);
+  const state = rollBudgetDay(stateFor(sessionId), now);
   const mode = capture?.mode;
   state.capturedCount += 1;
   state.lastTrigger = mode;

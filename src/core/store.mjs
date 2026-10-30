@@ -259,6 +259,10 @@ export class StrataStore {
         }
         assert(mark.capturedCount === undefined || Number.isSafeInteger(mark.capturedCount),
           'invalid_state', '自动记住计数无效。');
+        // 预算按本地日历日重置；旧库没有这个键，缺失必须合法（否则历史库读不出来）。
+        assert(mark.budgetDay === undefined || mark.budgetDay === null
+          || (typeof mark.budgetDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(mark.budgetDay)),
+          'invalid_state', '自动记住预算日期无效。');
       }
     }
     assert(Array.isArray(state.timeline) && state.timeline.length > 0, 'invalid_state', '缺少提交时间线。');
