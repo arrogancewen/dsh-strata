@@ -1,6 +1,6 @@
 {
   "name": "dsh-strata",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Local, versioned memory for DeepSeek Harness with scoped recall and portable import/export.",
   "type": "module",
   "main": "./src/host/index.mjs",

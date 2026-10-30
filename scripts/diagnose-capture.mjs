@@ -145,6 +145,6 @@ const hasLifetimeBudgetBug = numeric[0] === 0
 console.log('');
 console.log(`诊断脚本来自 dsh-strata ${pkg.version}。`);
 if (hasLifetimeBudgetBug) {
-  console.log('警告：0.1.7 及更早版本没有按天重置预算，计数只增不减，长会话必然永久停摆。请升级到 0.1.8+。');
+  console.log('警告：0.1.7 及更早版本没有按天重置预算，计数只增不减，长会话必然永久停摆。请升级到 0.1.8 或更高版本。');
 }
 await app.store.close?.();
