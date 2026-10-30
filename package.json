@@ -46,7 +46,8 @@
     "test:browser": "node scripts/browser-smoke.mjs",
     "test:dsh": "node scripts/verify-local-dsh.mjs",
     "test:live-l0": "node scripts/verify-live-l0.mjs",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "diagnose": "node scripts/diagnose-capture.mjs"
   },
   "license": "UNLICENSED",
   "repository": {
