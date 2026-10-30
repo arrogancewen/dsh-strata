@@ -24,28 +24,21 @@
 
 需要 **Node.js 22.13 或更高版本**。已验证 DSH SDK **0.2.1-rc.2**，以及使用该 SDK 的 Desktop 环境；其他版本尚未完成验收。
 
-### Desktop 桌面版
+### 从 GitHub 安装
+
+本项目不发布到 npm registry，只通过 git 分发。仓库已包含构建产物 `lib/client.js`，运行时依赖为空，所以**克隆后不需要 `npm ci`，也不需要 `npm run build`**：
 
 ```sh
-git clone https://github.com/arrogancewen/dsh-strata.git
-cd dsh-strata
-npm ci
-npm run build
+git clone --branch v0.1.9 --depth 1 https://github.com/arrogancewen/dsh-strata.git
 ```
 
-在 DSH 桌面版侧边栏进入“插件”，选择安装本地目录，指向克隆得到的 `dsh-strata` 文件夹并启用。按宿主提示重载后，打开 **设置 → 记忆地层**。
+装指定版本就换 tag（已发布 `v0.1.7`、`v0.1.8`、`v0.1.9`）；跟随最新提交则省掉 `--branch`。
 
-仓库包含 `lib/client.js` 构建产物；修改界面源码后需要重新执行 `npm run build`。`esbuild` 仅作为构建依赖。本项目尚未发布到 npm registry，请使用本地目录或自行生成的安装包。
+- **Desktop 桌面版**：在侧边栏进入「插件」，选择安装本地目录，指向克隆得到的 `dsh-strata` 文件夹并启用。按宿主提示重载后，打开 **设置 → 记忆地层**。
+- **Web profile**：在克隆目录运行 `dsh plugin --profile web add .`，然后重启对应的 Web 实例。
+- **只想体检记忆库**：克隆后直接 `node scripts/diagnose-capture.mjs`，见「自动记住」一节。
 
-### Web profile
-
-完成上述克隆与构建后，在项目目录运行：
-
-```sh
-dsh plugin --profile web add .
-```
-
-然后重启对应的 Web 实例。Desktop 的 CLI 安装流程与 Web 不同，桌面版优先使用内置插件管理器。
+`esbuild` 仅用于重新构建界面。只有修改了 `client/` 下的源码才需要 `npm ci && npm run build`；日常安装与使用不需要。
 
 ### 独立本地设置页
 
