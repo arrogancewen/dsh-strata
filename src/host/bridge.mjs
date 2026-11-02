@@ -121,12 +121,24 @@ export async function buildContinuation(sessionQuery, { sessionId, cwd, budgetBy
   };
 }
 
-/** 会话刚开始时才有必要接上一段；跑了几十轮的会话自己就有上下文。 */
+/**
+ * 会话刚开始时才有必要接上一段；跑了几十轮的会话自己就有上下文。
+ *
+ * 注意：DSH 的 Session 没有 `seq` 字段（只有 header、surface、inheritedEventCount、
+ * firstLiveSeq）。最早一版按 `session.seq` 判年龄，拿到的永远是 undefined，
+ * `undefined > 400` 恒为假 —— 守卫看着在，其实从没生效过，每个会话都会被续接。
+ * 现在按模型可见事件数（surface.nodes）数，并且数不出来时按「年轻」处理：
+ * 宁可在长会话里多接一次尾巴，也不要让新会话继续翻日记。
+ */
 export function needsContinuation(agent, limit = MAX_FRESH_EVENTS) {
   const header = agent?.session?.header;
   if (!header || !isPrimarySessionHeader(header)) return false;
-  const seq = agent?.session?.seq;
-  if (typeof seq === 'number' && seq > limit) return false;
+  const session = agent?.session;
+  const nodes = session?.surface?.nodes;
+  if (Array.isArray(nodes)) return nodes.length <= limit;
+  // 兼容旧字段（真实 DSH 上不存在），只为不把测试桩和未来版本写死。
+  const seq = session?.seq;
+  if (typeof seq === 'number') return seq <= limit;
   return true;
 }
 

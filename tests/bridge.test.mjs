@@ -55,6 +55,18 @@ test('continuation is only injected into a young session', () => {
   assert.equal(needsContinuation(null), false);
 });
 
+// 真实 DSH 的 Session 没有 seq 字段（只有 header / surface / inheritedEventCount / firstLiveSeq）。
+// 早先按 session.seq 判年龄时拿到 undefined，守卫从未生效，于是每个会话都被续接。
+test('continuation reads the real Session shape through surface.nodes', () => {
+  const header = { id: 's', cwd: '/p' };
+  const nodes = n => Array.from({ length: n }, (_, i) => i);
+  assert.equal(needsContinuation({ session: { header, surface: { nodes: nodes(3) } } }), true);
+  assert.equal(needsContinuation({ session: { header, surface: { nodes: nodes(400) } } }), true);
+  assert.equal(needsContinuation({ session: { header, surface: { nodes: nodes(401) } } }), false);
+  // 完全没有 surface、也没有 seq 时按「年轻」处理：宁可多接一次，也不让新会话继续翻日记。
+  assert.equal(needsContinuation({ session: { header } }), true);
+});
+
 test('continuation borrows the tail of the previous session and never the current one', async () => {
   const previous = { header: { id: 'old', cwd: '/p', createdAt: '2026-10-30T02:00:00.000Z' } };
   const current = { header: { id: 'now', cwd: '/p', createdAt: '2026-10-31T02:00:00.000Z' } };
