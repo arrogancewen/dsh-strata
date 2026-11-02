@@ -13,6 +13,9 @@ Strata is a local memory plugin for DeepSeek Harness (DSH). Version **0.1.4** pr
 | Session scope | Allow the whole DSH instance or sessions in one folder, optionally including subfolders. |
 | Migration | Export complete or reference-only JSON bundles; import Strata JSON, Markdown, and TXT with a preview and explicit confirmation. |
 | Original evidence | Read archived source text in pages and verify its content hash. |
+| Automatic evidence | After the model saves a memory, the host attaches this conversation's source text so `strata_deep` can return real quotations. |
+| Cross-session continuation | A new session starts with the tail of the previous session in the same folder, instead of re-reading logs. |
+| Deictic query fallback | Queries like "yesterday" or "last time" fall back to newest-first records and say so explicitly. |
 | Manual idea inbox | Save and inspect ideas separately from default factual recall. |
 | Settings | Browse, search, save, configure scope, import/export, and inspect original evidence. |
 
@@ -23,16 +26,21 @@ Requirements:
 - Node.js **22.13 or newer** for local development and the standalone settings server.
 - DSH SDK **0.2.1-rc.2** is the verified integration target. Later runtime versions have not been verified.
 
-Clone and build:
+Clone the release tag:
 
 ```sh
-git clone https://github.com/arrogancewen/dsh-strata.git
-cd dsh-strata
-npm ci
-npm run build
+git clone --branch v0.2.0 --depth 1 https://github.com/arrogancewen/dsh-strata.git
 ```
 
+The repository already ships the built client bundle (`lib/client.js`) and has no runtime
+dependencies, so **`npm ci` and `npm run build` are not needed**. Cloning is enough.
+
 In DSH Desktop, open **Plugins**, install the local `dsh-strata` directory, and enable it. Follow any reload instructions shown by DSH. Then open **Settings → 记忆地层**.
+
+For DSH Web, see the install command below. To inspect the capture state without changing
+anything, run `node scripts/diagnose-capture.mjs`.
+
+`npm ci` is only required if you intend to modify `client/` and rebuild the bundle with esbuild.
 
 The storage and migration core has no external runtime dependencies. `esbuild` is a development dependency used to build the DSH client module. The source installation above does not require a published npm package.
 
