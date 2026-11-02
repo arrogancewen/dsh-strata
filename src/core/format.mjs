@@ -189,6 +189,28 @@ export function tokenize(query) {
   return [...new Set(tokens)];
 }
 
+/**
+ * 指代式查询：问的是「什么时候说过」，不是「什么主题」。
+ *
+ * 「昨天你说那句话」切成 2-gram 全是虚词（昨天/天你/你说/说那/那句/句话），
+ * 任何一条真实记忆都不会同时含这 6 个 gram，于是必然 0 命中。
+ * 这类查询不该走关键词——关键词只能证明「没提过这个词」，不能证明「没说过」。
+ */
+const DEICTIC_MARKERS = Object.freeze([
+  '昨天', '今天', '前天', '明天', '昨晚', '今晚', '上午', '下午', '晚上', '中午',
+  '上次', '上回', '刚才', '刚刚', '之前', '以前', '那天', '那次', '那句', '那段', '那件事',
+  '前几天', '最近', '前两天', '隔天', '第二天',
+  '你说', '我说', '说过', '聊过', '提过', '讲过', '问过', '来着', '什么来着', '记得',
+  'yesterday', 'today', 'this morning', 'last time', 'earlier', 'last night',
+]);
+
+/** 查询里是否带着「指代/时间」标记——只有这种查询才值得退到时间倒序。 */
+export function isDeicticQuery(query) {
+  const normalized = String(query ?? '').normalize('NFKC').toLocaleLowerCase('en-US');
+  if (!normalized.trim()) return false;
+  return DEICTIC_MARKERS.some(marker => normalized.includes(marker));
+}
+
 export function lexicalScore(record, query) {
   const tokens = tokenize(query);
   if (!tokens.length) return query.trim() ? 0 : 1;

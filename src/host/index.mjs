@@ -4,6 +4,8 @@ import { createApplication } from '../application.mjs';
 import { registerHost } from './adapter.mjs';
 
 export const name = 'dsh-strata';
+// sessionQuery 不在这里强注入：它是可选服务，拿不到时只是不续接、不挂原文，
+// 插件必须照常起来。用 ctx.get('sessionQuery') 软取。
 export const inject = ['connection', 'webServer', 'tools', 'systemPrompt', 'agents'];
 
 /** Plain Cordis plugin. User-facing settings are managed by the Strata section. */

@@ -6,7 +6,7 @@ import { assert, StrataError } from './errors.mjs';
 import {
   SCHEMA_VERSION, RECORD_KINDS, SOURCE_KINDS, EPISTEMIC_STATUSES, FACT_KINDS,
   canonicalJson, sha256, assertId, isoTime, textField, recordRevision, evidenceHash,
-  normalizeRecord, normalizeImportedEvidence, lexicalScore,
+  normalizeRecord, normalizeImportedEvidence, lexicalScore, isDeicticQuery,
 } from './format.mjs';
 import { physicalDirectory, normalizeScope, validateScopeShape, scopeAllows, requireScope } from './scope.mjs';
 
@@ -488,6 +488,7 @@ export class StrataStore {
     const query = options.query ?? '';
     textField(query, 'query', 2000, { empty: true });
     const records = [];
+    const unscored = [];
     for (const history of Object.values(state.records)) {
       const visible = history.filter(record => record.commitSeq <= viewSeq);
       const candidates = options.includeHistory ? visible : visible.slice(-1);
@@ -495,16 +496,26 @@ export class StrataStore {
         if (!kinds.includes(record.kind) || (!options.includeHistory && ['refuted', 'superseded'].includes(record.epistemicStatus))) continue;
         if (!await this._recordReadable(record, history.at(-1), state, options)) continue;
         const score = lexicalScore(record, query);
-        if (!score) continue;
-        records.push({ ...clone(record), score, isHistorical: record.revision !== history.at(-1).revision });
+        const item = { ...clone(record), score, isHistorical: record.revision !== history.at(-1).revision };
+        if (!score) { unscored.push(item); continue; }
+        records.push(item);
       }
+    }
+    // 指代式查询（「昨天你说那句话」「上次那个预算的事」）永远不可能走词法命中：
+    // 切成 2-gram 后全是虚词，没有任何一条记忆会同时含有它们。
+    // 这种查询的正确语义是「按时间倒序看看最近说过什么」，而不是"没提过"。
+    // 只在关键词一无所获时降级，命中时绝不用时间来干扰排序。
+    let degraded = false;
+    if (!records.length && query.trim() && isDeicticQuery(query)) {
+      degraded = true;
+      records.push(...unscored);
     }
     records.sort((left, right) => right.score - left.score || right.recordedAt.localeCompare(left.recordedAt) || left.id.localeCompare(right.id));
     const limit = options.limit === undefined ? 100 : integer(options.limit, 'limit', 1, 1000);
     const offset = options.offset === undefined ? 0 : integer(options.offset, 'offset', 0, 1000000);
     const page = records.slice(offset, offset + limit);
     await this._finalAuthorization(page, options);
-    return { records: page, total: records.length, viewId: `${state.sourceId}@${Math.max(0, viewSeq)}` };
+    return { records: page, total: records.length, viewId: `${state.sourceId}@${Math.max(0, viewSeq)}`, degraded };
   }
 
   async getRecord(id, options = {}) {
@@ -601,6 +612,68 @@ export class StrataStore {
         draft.operations[input.idempotencyKey] = { id: record.id, revision: record.revision };
       }
       return record;
+    }, options);
+  }
+
+  /**
+   * 给一条已存在的记忆补挂原文证据。
+   *
+   * 只有宿主能走这条路：证据正文由宿主用 sessionQuery 从会话日志里读出来，
+   * 模型既看不见也改不了，所以「会话侧不能提供证据」这条防伪造原则不被破坏。
+   * 非管理员调用时，证据的 sessionId 必须就是调用者自己的会话。
+   */
+  async attachEvidence(id, evidence, options = {}) {
+    assertId(id);
+    assert(Array.isArray(evidence) && evidence.length > 0 && evidence.length <= 50, 'invalid_evidence', '最多一次附加 50 项证据。');
+    return this.transaction(async (draft, context) => {
+      const history = draft.records[id];
+      assert(history && history.length, 'not_found', '没有找到此记忆。');
+      const latest = history.at(-1);
+      assert(await this._recordReadable(latest, latest, draft, options), 'out_of_scope', '无权更新此记忆。');
+      if (!options.admin) {
+        for (const item of evidence) {
+          assert(item && typeof item === 'object' && item.sessionId === options.sessionId,
+            'access_denied', '会话只能为自己会话内的原文挂证据。');
+        }
+      }
+      const updated = clone(latest);
+      for (const item of evidence) {
+        // 幂等：同一证据 ID、同一段原文就是同一条证据，直接复用。
+        // 否则每次重新归一化都会算出新 hash（createdAt 在变），误报 evidence_conflict。
+        let record = item?.id ? draft.evidence[item.id] : undefined;
+        if (record && typeof record.text === 'string' && record.text === (item.text ?? '')) {
+          // 复用已有证据，不重新归一化。
+        } else {
+          // createdAt 必须沿用 host 给的时间：不传就每次 new Date()，
+          // 同一段原文重复挂载会算出不同 hash，同样会误报冲突。
+          const seeded = { ...item };
+          if (seeded.createdAt == null) seeded.createdAt = latest.recordedAt ?? latest.createdAt;
+          record = normalizeImportedEvidence(seeded, {
+            sourceId: draft.sourceId,
+            scope: clone(latest.scope),
+            ...(item.id ? { id: item.id } : {}),
+          });
+          if (!options.admin) await requireScope(record.scope, options.cwd);
+          if (draft.evidence[record.id]) {
+            assert(canonicalJson(draft.evidence[record.id]) === canonicalJson(record), 'evidence_conflict', '同一证据 ID 已存在不同内容。');
+          } else draft.evidence[record.id] = record;
+        }
+        if (!updated.provenance.some(ref => ref.evidenceId === record.id)) {
+          updated.provenance.push({
+            evidenceId: record.id, sourceId: record.sourceId, eventHash: record.hash,
+            ...(record.sessionId ? { sessionId: record.sessionId } : {}),
+            ...(item.seqStart != null ? { seqStart: item.seqStart } : {}),
+            ...(item.seqEnd != null ? { seqEnd: item.seqEnd } : {}),
+          });
+        }
+      }
+      // 幂等：一条证据都没新增时，不要造一个只有 updatedAt 变了的空版本。
+      if (updated.provenance.length === latest.provenance.length) return latest;
+      updated.updatedAt = context.recordedAt;
+      updated.revision = recordRevision(updated);
+      if (history.some(version => version.revision === updated.revision)) return history.at(-1);
+      history.push(updated);
+      return updated;
     }, options);
   }
 

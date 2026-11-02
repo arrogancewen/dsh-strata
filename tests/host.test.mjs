@@ -215,3 +215,119 @@ test('L0 does not reuse cached authorization and suppresses revoked or disposed 
   f.app.dispatch = async () => { f.setLive(undefined); return { text: 'private memory', scopeAllowed: true }; };
   assert.equal((await run()).contexts.length, 0);
 });
+
+// 续接：新会话开场必须看到上一个会话的尾巴，而且不能用子会话冒充。
+test('prompt middleware continues from the previous session without borrowing a subagent', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'strata-continue-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const app = await createApplication(root, { initialScope: { mode: 'dsh' } });
+  await app.dispatch('settings.update', { patch: { capture: { enabled: false } } }, { admin: true });
+
+  const cwd = path.resolve('project-continue');
+  // 当前会话只有 2 个事件，属于「刚开的会话」，应该接上一段。
+  const agent = { id: 'session-now', status: 'running', session: { id: 'session-now', header: { id: 'session-now', cwd }, seq: 2 } };
+  const header = (id, extra = {}) => ({ id, cwd, createdAt: '2026-10-30T02:00:00.000Z', ...extra });
+  const query = {
+    filterSessions: async () => [
+      { header: header('session-now') },
+      { header: header('session-sub', { parentSession: 'session-now' }) },
+      { header: header('session-old') },
+    ],
+    readSurface: async id => ({
+      session: header(id),
+      inheritedEventCount: 0,
+      capturedThroughSeq: null,
+      events: id !== 'session-old' ? [] : [
+        { type: 'user/message', seq: 1, data: { content: [{ type: 'text', text: '上次说的预算三千' }], source: { kind: 'user' } } },
+        { type: 'assistant/message', seq: 2, data: { message: { content: [{ type: 'text', text: '记下了' }] } } },
+      ],
+    }),
+  };
+  const ctx = {
+    agents: { get: id => (id === agent.id ? agent : undefined), currentInitiator: () => agent },
+    get: name => (name === 'sessionQuery' ? query : undefined),
+  };
+  const middleware = createPromptMiddleware(ctx, app);
+  const assembly = { sections: [], contexts: [] };
+  const value = await middleware(assembly, { agent, scope: agent }, async () => assembly);
+  const continuation = value.contexts.find(item => item.name === 'dsh-strata:continuation');
+  assert.ok(continuation, '新会话必须注入续接上下文');
+  assert.equal(continuation.interpolate, false);
+  assert.match(continuation.text, /上次说的预算三千/);
+  assert.match(continuation.text, /记下了/);
+  // 子会话的独白绝不能混进来。
+  assert.equal(continuation.text.includes('subagent'), false);
+});
+
+// 老会话不该被续接：它自己就有上下文，再塞一段别人的尾巴只会干扰。
+test('a long-running session is not given a continuation tail', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'strata-nocontinue-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const app = await createApplication(root, { initialScope: { mode: 'dsh' } });
+  const cwd = path.resolve('project-long');
+  const agent = { id: 'session-long', status: 'running', session: { id: 'session-long', header: { id: 'session-long', cwd }, seq: 5000 } };
+  let asked = false;
+  const ctx = {
+    agents: { get: id => (id === agent.id ? agent : undefined), currentInitiator: () => agent },
+    get: name => (name === 'sessionQuery' ? { filterSessions: async () => { asked = true; return []; }, readSurface: async () => ({ events: [] }) } : undefined),
+  };
+  const middleware = createPromptMiddleware(ctx, app);
+  const assembly = { sections: [], contexts: [] };
+  const value = await middleware(assembly, { agent, scope: agent }, async () => assembly);
+  assert.equal(value.contexts.some(item => item.name === 'dsh-strata:continuation'), false);
+  assert.equal(asked, false, '老会话根本不该去查会话列表');
+});
+
+// 端到端：strata_remember 成功后必须自动挂上原文，strata_deep 才能真的翻到原话。
+test('remember attaches host-owned evidence so strata_deep returns the source conversation', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'strata-evidence-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const app = await createApplication(root, { initialScope: { mode: 'dsh' } });
+  const cwd = path.resolve('project-evidence');
+  const agent = { id: 'session-ev', status: 'running', session: { id: 'session-ev', header: { id: 'session-ev', cwd }, seq: 6 } };
+  const query = {
+    readSurface: async () => ({
+      session: { id: 'session-ev' },
+      inheritedEventCount: 0,
+      capturedThroughSeq: null,
+      events: [
+        { type: 'user/message', seq: 1, data: { content: [{ type: 'text', text: '这次就用 SQLite，不要外部服务' }], source: { kind: 'user' } } },
+        { type: 'assistant/message', seq: 2, data: { message: { content: [{ type: 'text', text: '明白，本地优先' }] } } },
+      ],
+    }),
+  };
+  const ctx = {
+    agents: { get: id => (id === agent.id ? agent : undefined), currentInitiator: () => agent },
+    get: name => (name === 'sessionQuery' ? query : undefined),
+  };
+  const tools = Object.fromEntries(createToolDefinitions(ctx, app).map(tool => [tool.name, tool]));
+  const execution = { agent, signal: undefined };
+  const saved = await tools.strata_remember.execute({ title: '决定用 SQLite', gist: '本地优先' }, execution);
+  assert.ok(saved.id);
+  assert.equal(saved.deepAvailable, true);
+  assert.equal(saved.evidenceCount, 1);
+
+  const deep = await tools.strata_deep.execute({ entryId: saved.id }, execution);
+  assert.equal(deep.integrity, 'verified');
+  assert.match(deep.text, /就用 SQLite，不要外部服务/);
+  assert.match(deep.text, /明白，本地优先/);
+});
+
+// 拿不到 sessionQuery 时必须照常工作，只是没有续接与原文——绝不因此让工具失败。
+test('missing sessionQuery degrades gracefully instead of failing remember', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'strata-noquery-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const app = await createApplication(root, { initialScope: { mode: 'dsh' } });
+  const cwd = path.resolve('project-noquery');
+  const agent = { id: 'session-nq', status: 'running', session: { id: 'session-nq', header: { id: 'session-nq', cwd }, seq: 3 } };
+  const ctx = {
+    agents: { get: id => (id === agent.id ? agent : undefined), currentInitiator: () => agent },
+  };
+  const tools = Object.fromEntries(createToolDefinitions(ctx, app).map(tool => [tool.name, tool]));
+  const execution = { agent, signal: undefined };
+  const saved = await tools.strata_remember.execute({ title: '没有会话查询', gist: '也要能记住' }, execution);
+  assert.ok(saved.id);
+  assert.equal(saved.deepAvailable, undefined);
+  // 工具本身成功；deep 会如实说没有原文，而不是崩掉。
+  await assert.rejects(tools.strata_deep.execute({ entryId: saved.id }, execution), { code: 'source_unavailable' });
+});
